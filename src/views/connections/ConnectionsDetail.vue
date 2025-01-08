@@ -1,19 +1,55 @@
 <template>
   <div class="connections-detail">
-    <div ref="connectionTopbar" class="connections-topbar right-topbar">
+    <copilot v-if="enableCopilot" ref="copilot" :record="record" mode="connections" />
+    <div
+      ref="connectionTopbar"
+      class="connections-topbar right-topbar"
+      :style="{
+        left: leftValue,
+      }"
+    >
       <div class="connections-info">
         <div class="topbar">
           <div class="connection-head">
-            <h2 :class="{ offline: !client.connected }">
-              <span class="title-name">{{ titleName }}</span>
+            <el-tooltip
+              placement="bottom"
+              :effect="theme !== 'light' ? 'light' : 'dark'"
+              :open-delay="500"
+              :content="$t('connections.showConnections')"
+            >
               <a
+                v-if="!showConnectionList"
                 href="javascript:;"
-                :class="['collapse-btn', showClientInfo ? 'top' : 'bottom']"
-                @click="handleCollapse($route.params.id)"
+                class="show-connections-button"
+                @click="
+                  toggleShowConnectionList({
+                    showConnectionList: true,
+                  })
+                "
               >
-                <i class="el-icon-d-arrow-left"></i>
+                <i class="iconfont icon-show-connections"></i>
               </a>
-            </h2>
+            </el-tooltip>
+            <el-tooltip
+              v-if="showConnectionList"
+              :disabled="!showTitleTooltip"
+              :effect="theme !== 'light' ? 'light' : 'dark'"
+              :content="titleName"
+              :open-delay="500"
+              placement="top"
+            >
+              <h2 ref="title" :class="[{ offline: !client.connected }, 'title-name']">
+                {{ titleName }}
+              </h2>
+            </el-tooltip>
+            <ConnectionSelect v-else size="mini" width="180px" @change="handleConnectionSelect" />
+            <a
+              href="javascript:;"
+              :class="['collapse-btn', showClientInfo ? 'top' : 'bottom']"
+              @click="handleCollapse($route.params.id)"
+            >
+              <i class="iconfont icon-collapse"></i>
+            </a>
             <transition name="el-fade-in">
               <el-popover
                 v-if="client.connected"
@@ -46,7 +82,7 @@
                   :content="$t('connections.clearIntervalBtn')"
                 >
                   <a class="stop-interval-btn" href="javascript:;" @click="stopTimedSend">
-                    <i class="iconfont icon-a-stoptiming"></i>
+                    <i class="iconfont icon-stop-timing"></i>
                   </a>
                 </el-tooltip>
                 <el-tooltip
@@ -83,7 +119,18 @@
               :content="$t('script.removeScript')"
             >
               <a class="remove-script-btn" href="javascript:;" @click="removeScript">
-                <i class="iconfont icon-a-stopscrip"></i>
+                <i class="iconfont icon-stop-script"></i>
+              </a>
+            </el-tooltip>
+            <el-tooltip
+              v-if="enableCopilot"
+              placement="bottom"
+              :effect="theme !== 'light' ? 'light' : 'dark'"
+              :open-delay="500"
+              content="MQTTX Copilot"
+            >
+              <a href="javascript:;" class="copilot-btn" @click="toggleShowCopilot">
+                <i class="iconfont icon-chat"></i>
               </a>
             </el-tooltip>
             <template v-if="!isNewWindow">
@@ -94,7 +141,7 @@
                 :content="$t('common.config')"
               >
                 <a
-                  :class="['edit-btn', { disabled: client.connected }]"
+                  :class="['edit-btn', { disabled: client.connected || connectLoading }]"
                   href="javascript:;"
                   @click="handleEdit($route.params.id)"
                 >
@@ -109,26 +156,26 @@
                   <el-dropdown-item command="searchContent">
                     <i class="iconfont icon-search"></i>{{ $t('connections.searchContent') }}
                   </el-dropdown-item>
-                  <el-dropdown-item command="newWindow">
-                    <i class="iconfont icon-a-newwindow"></i>{{ $t('common.newWindow') }}
-                  </el-dropdown-item>
                   <el-dropdown-item command="clearHistory">
-                    <i class="iconfont icon-a-clearhistory"></i>{{ $t('connections.clearHistory') }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="exportData">
-                    <i class="iconfont icon-a-exportdata"></i>{{ $t('connections.exportData') }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="importData">
-                    <i class="iconfont icon-a-importdata"></i>{{ $t('connections.importData') }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="timedMessage" :disabled="!client.connected || sendTimeId !== null">
-                    <i class="iconfont icon-a-timedmessage"></i>{{ $t('connections.timedMessage') }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="bytesStatistics" :disabled="!client.connected">
-                    <i class="iconfont icon-a-bytesstatistics"></i>{{ $t('connections.bytesStatistics') }}
+                    <i class="iconfont icon-clear-history"></i>{{ $t('connections.clearHistory') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="useScript" :disabled="!client.connected">
-                    <i class="iconfont icon-a-usescript"></i>{{ $t('script.useScript') }}
+                    <i class="iconfont icon-use-script"></i>{{ $t('script.useScript') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="newWindow">
+                    <i class="iconfont icon-new-window"></i>{{ $t('common.newWindow') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="exportData">
+                    <i class="iconfont icon-export-data"></i>{{ $t('connections.exportData') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="importData">
+                    <i class="iconfont icon-import-data"></i>{{ $t('connections.importData') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="syncToTopicTree">
+                    <i class="iconfont icon-tree-view"></i>{{ $t('connections.syncToTopicTree') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="trafficMonitor" :disabled="!client.connected">
+                    <i class="iconfont icon-bytes-statistics"></i>{{ $t('viewer.trafficMonitor') }}
                   </el-dropdown-item>
                   <el-dropdown-item command="disconnect" :disabled="!client.connected">
                     <i class="el-icon-switch-button"></i>{{ $t('connections.disconnect') }}
@@ -186,34 +233,30 @@
       </transition>
     </div>
     <div
-      class="connections-detail-main right-content"
+      class="connections-detail-main"
       :style="{
-        paddingTop: showClientInfo ? msgTop.open : msgTop.close,
+        paddingTop: msgTopValue,
         paddingBottom: `${msgBottom}px`,
-        marginLeft: showSubs ? '571px' : '341px',
+        marginLeft: detailLeftValue,
       }"
     >
       <div class="connections-body">
-        <div ref="filterBar" class="filter-bar" :style="{ top: showClientInfo ? bodyTop.open : bodyTop.close }">
-          <span class="subs-title">
-            {{ this.$t('connections.subscriptions') }}
-            <a class="subs-btn" href="javascript:;" @click="handleShowSubs">
-              <i class="iconfont icon-collapse"></i>
-            </a>
-          </span>
+        <div ref="filterBar" class="filter-bar" :style="{ top: bodyTopValue, left: detailLeftValue }">
           <div class="message-type">
-            <el-tooltip
-              placement="top"
-              :effect="theme !== 'light' ? 'light' : 'dark'"
-              :open-delay="500"
-              :content="$t('connections.receivedPayloadDecodedBy')"
+            <el-select
+              class="received-type-select"
+              size="mini"
+              v-model="receivedMsgType"
+              @change="handleReceivedMsgTypeChange"
             >
-              <a href="javascript:;" class="icon-tip">
-                <i class="el-icon-question"></i>
-              </a>
-            </el-tooltip>
-            <el-select class="received-type-select" size="small" v-model="receivedMsgType">
-              <el-option v-for="type in ['Plaintext', 'Base64', 'JSON', 'Hex']" :key="type" :value="type"> </el-option>
+              <el-option-group :label="$t('connections.receivedPayloadDecodedBy')">
+                <el-option
+                  v-for="type in ['Plaintext', 'JSON', 'Base64', 'Hex', 'CBOR', 'MsgPack']"
+                  :key="type"
+                  :value="type"
+                >
+                </el-option>
+              </el-option-group>
             </el-select>
             <MsgTypeTabs v-model="msgType" @change="handleMsgTypeChanged" />
           </div>
@@ -221,12 +264,12 @@
         <SubscriptionsList
           v-if="$route.params.id"
           ref="subList"
-          :subsVisible.sync="showSubs"
           :connectionId="$route.params.id"
           :record="record"
-          :top="showClientInfo ? bodyTop.open : bodyTop.close"
+          :top="bodyTopValue"
           @onClickTopic="handleTopicClick"
           @deleteTopic="handleTopicDelete"
+          @onSubError="handleSubTopicError"
         />
         <MessageList
           ref="msgList"
@@ -250,18 +293,20 @@
         </contextmenu>
       </div>
 
-      <div ref="connectionFooter" class="connections-footer" :style="{ marginLeft: showSubs ? '571px' : '341px' }">
+      <div ref="connectionFooter" class="connections-footer" :style="{ marginLeft: detailLeftValue }">
         <ResizeHeight v-model="inputHeight" />
         <MsgPublish
           :mqtt5PropsEnable="record.mqttVersion === '5.0'"
           ref="msgPublish"
           :editor-height="inputHeight - 75"
-          :subs-visible="showSubs"
           :style="{ height: `${inputHeight}px` }"
           :disabled="sendTimeId !== null"
           :clientConnected="client.connected"
-          @foucs="handleMessages"
-          @handleSend="sendMessage"
+          :sendTimeId="sendTimeId"
+          @foucs="loadMessages"
+          @handleSend="throttleSendMessage"
+          @handleSendTimedMessage="handleCommand('timedMessage')"
+          @onInsertedCode="handleInsertedCode"
         />
       </div>
     </div>
@@ -269,12 +314,11 @@
     <ImportData :visible.sync="showImportData" />
     <TimedMessage ref="timedMessage" :visible.sync="showTimedMessage" @setTimerSuccess="setTimerSuccess" />
     <UseScript ref="useScript" :visible.sync="showUseScript" @setScript="handleSetScript" />
-    <BytesStatistics
-      ref="bytesStatistics"
-      :visible.sync="showBytes"
-      v-bind="chartData"
-      :version="version"
-      :uptime="uptime"
+    <SyncTopicTreeDialog
+      :visible.sync="showSyncTopicTreeDialog"
+      :auto-sync="true"
+      :sync-connection-id="curConnectionId"
+      @success="handleSyncTopicTreeSuccess"
     />
   </div>
 </template>
@@ -283,18 +327,18 @@
 import { Component, Vue, Prop, Watch } from 'vue-property-decorator'
 import { Getter, Action } from 'vuex-class'
 import { ipcRenderer } from 'electron'
-import { MqttClient, IConnackPacket, IPublishPacket, IClientPublishOptions } from 'mqtt'
+import { MqttClient, IConnackPacket, IPublishPacket, IClientPublishOptions, IDisconnectPacket, Packet } from 'mqtt'
 import _ from 'lodash'
 import { Subject, fromEvent } from 'rxjs'
-import { bufferTime, map, filter, takeUntil } from 'rxjs/operators'
+import { bufferTime, map, filter, takeUntil, shareReplay, distinctUntilChanged } from 'rxjs/operators'
+import cbor from 'cbor'
+import { pack, unpack } from 'msgpackr'
 
 import time from '@/utils/time'
 import matchMultipleSearch from '@/utils/matchMultipleSearch'
 import { matchTopicMethod } from '@/utils/topicMatch'
-import { createClient } from '@/utils/mqttUtils'
-import { getBytes, getUptime, getVersion } from '@/utils/SystemTopicUtils'
+import { createClient, ignoreQoS0Message } from '@/utils/mqttUtils'
 import validFormatJson from '@/utils/validFormatJson'
-import delay from '@/utils/delay'
 
 import MessageList from '@/components/MessageList.vue'
 import MsgPublish from '@/components/MsgPublish.vue'
@@ -305,16 +349,32 @@ import Contextmenu from '@/components/Contextmenu.vue'
 import ExportData from '@/components/ExportData.vue'
 import ImportData from '@/components/ImportData.vue'
 import TimedMessage from '@/components/TimedMessage.vue'
-import BytesStatistics from '@/components/BytesStatistics.vue'
 import UseScript from '@/components/UseScript.vue'
 import MsgTypeTabs from '@/components/MsgTypeTabs.vue'
 import MsgTip from '@/components/MsgTip.vue'
+import Copilot from '@/components/Copilot.vue'
 
 import sandbox from '@/utils/sandbox'
 import { hasMessagePayloadID, hasMessageHeaderID } from '@/utils/historyRecordUtils'
 import useServices from '@/database/useServices'
 import { getMessageId, getSubscriptionId } from '@/utils/idGenerator'
 import getContextmenuPosition from '@/utils/getContextmenuPosition'
+import { deserializeBufferToProtobuf, printObjectAsString, serializeProtobufToBuffer } from '@/utils/protobuf'
+import { jsonStringify } from '@/utils/jsonUtils'
+import { LeftValues, BodyTopValues, MsgTopValues, DetailLeftValues } from '@/utils/styles'
+import getErrorReason from '@/utils/mqttErrorReason'
+import { isLargeData } from '@/utils/data'
+import { serializeAvroToBuffer, deserializeBufferToAvro } from '@/utils/avro'
+import { globalEventBus } from '@/utils/globalEventBus'
+import SyncTopicTreeDialog from '@/widgets/SyncTopicTreeDialog.vue'
+import ConnectionSelect from '@/components/ConnectionSelect.vue'
+import {
+  MAX_MESSAGES_COUNT,
+  SCROLL_BOTTOM_THRESHOLD,
+  SCROLL_HEIGHT_COMPENSATION,
+  MESSAGE_RATE_THRESHOLD,
+  MESSAGES_BUFFER_TIME,
+} from '@/utils/constant'
 
 type CommandType =
   | 'searchContent'
@@ -324,14 +384,10 @@ type CommandType =
   | 'exportData'
   | 'importData'
   | 'timedMessage'
-  | 'bytesStatistics'
+  | 'syncToTopicTree'
+  | 'trafficMonitor'
   | 'useScript'
   | 'newWindow'
-
-interface TopModel {
-  open: string
-  close: string
-}
 
 @Component({
   components: {
@@ -343,11 +399,13 @@ interface TopModel {
     ExportData,
     ImportData,
     TimedMessage,
-    BytesStatistics,
     MessageList,
     UseScript,
     MsgTypeTabs,
     MsgTip,
+    Copilot,
+    SyncTopicTreeDialog,
+    ConnectionSelect,
   },
 })
 export default class ConnectionsDetail extends Vue {
@@ -356,16 +414,19 @@ export default class ConnectionsDetail extends Vue {
   @Action('CHANGE_ACTIVE_CONNECTION') private changeActiveConnection!: (payload: Client) => void
   @Action('REMOVE_ACTIVE_CONNECTION') private removeActiveConnection!: (payload: { readonly id: string }) => void
   @Action('SHOW_CLIENT_INFO') private changeShowClientInfo!: (payload: ClientInfo) => void
-  @Action('SHOW_SUBSCRIPTIONS') private changeShowSubscriptions!: (payload: SubscriptionsVisible) => void
   @Action('UNREAD_MESSAGE_COUNT_INCREMENT') private unreadMessageIncrement!: (payload: UnreadMessage) => void
   @Action('SET_SCRIPT') private setScript!: (payload: { currentScript: ScriptState | null }) => void
+  @Action('TOGGLE_SHOW_CONNECTION_LIST') private toggleShowConnectionList!: (payload: {
+    showConnectionList: boolean
+  }) => void
 
   @Getter('activeConnection') private activeConnection!: ActiveConnection
-  @Getter('showSubscriptions') private showSubscriptions!: boolean
   @Getter('maxReconnectTimes') private maxReconnectTimes!: number
   @Getter('currentTheme') private theme!: Theme
   @Getter('showClientInfo') private clientInfoVisibles!: { [id: string]: boolean }
   @Getter('currentScript') private scriptOption!: ScriptState | null
+  @Getter('enableCopilot') private enableCopilot!: boolean
+  @Getter('showConnectionList') private showConnectionList!: boolean
 
   /**
    * Notice: when we jump order by `other page` -> `creation page` -> `connection page`,
@@ -376,35 +437,35 @@ export default class ConnectionsDetail extends Vue {
    */
   @Watch('$route.path', { immediate: true, deep: true })
   private handleIdChanged(to: string, from: string) {
+    // Stop reconnection attempts if the page changes, as reconnection only works on the current connection page
+    this.forceStopToReconnect()
     // When route jump order by `other page` -> `creation page`
     if (!from && to && to === '/recent_connections/0') {
       // Destroy the MsgPublish/editor
       setTimeout(() => {
-        const thisMsgPublish: MsgPublish = this.$refs.msgPublish as MsgPublish
-        thisMsgPublish.editorDestory()
+        const msgPublishRef: MsgPublish = this.$refs.msgPublish as MsgPublish
+        msgPublishRef.editorDestory()
       }, 100)
-      // When we jump order by `other page` -> `creation page` -> `connection page`, it's should only init once.
     }
   }
 
-  private showSubs = true
   private showClientInfo = true
   private showExportData = false
   private showImportData = false
   private showTimedMessage = false
   private showUseScript = false
+  private showTitleTooltip = false
+  private showSyncTopicTreeDialog = false
 
   private connectLoading = false
   private disconnectLoding = false
-  private isReconnect = false
   private searchVisible = false
   private searchLoading = false
-  private showBytes = false
 
   private sendFrequency: number | undefined = undefined
   private sendTimeId: number | null = null
   private sendTimedMessageCount = 0
-  private receivedMsgType: PayloadType = 'Plaintext'
+  private receivedMsgType: PayloadType = this.getReceivedMsgType()
   private msgType: MessageType = 'all'
 
   private client: Partial<MqttClient> = {
@@ -427,8 +488,8 @@ export default class ConnectionsDetail extends Vue {
     payload: '',
   }
 
-  private retryTimes = 0
-  private inputHeight = 160
+  private reTryConnectTimes = 0
+  private inputHeight = 180
   private msgBottom = 166
   private messageListHeight: number = 284
   private messageListMarginTop: number = 19
@@ -441,30 +502,25 @@ export default class ConnectionsDetail extends Vue {
     left: 0,
   }
   private selectedInfo: string = ''
-  private chartData: ChartDataModel = {
-    label: '',
-    recevied: 0,
-    sent: 0,
-  }
-  private version = ''
-  private uptime = ''
 
   get titleName() {
     return this.record.name
   }
 
-  get bodyTop(): TopModel {
-    return {
-      open: '249px',
-      close: '60px',
-    }
+  get bodyTopValue(): string {
+    return this.showClientInfo ? BodyTopValues.Open : BodyTopValues.Close
   }
 
-  get msgTop(): TopModel {
-    return {
-      open: '282px',
-      close: '91px',
-    }
+  get msgTopValue(): string {
+    return this.showClientInfo ? MsgTopValues.Open : MsgTopValues.Close
+  }
+
+  get leftValue(): string {
+    return this.showConnectionList ? LeftValues.Show : LeftValues.Hide
+  }
+
+  get detailLeftValue(): string {
+    return this.showConnectionList ? DetailLeftValues.Show : DetailLeftValues.Hide
   }
 
   get isNewWindow(): boolean {
@@ -497,7 +553,7 @@ export default class ConnectionsDetail extends Vue {
   @Watch('record')
   private async handleRecordChanged() {
     this.getConnectionValue(this.curConnectionId)
-    this.handleMessages({ behavior: 'auto' })
+    this.loadMessages()
   }
 
   @Watch('inputHeight')
@@ -520,24 +576,74 @@ export default class ConnectionsDetail extends Vue {
     }, 500)
   }
 
+  @Watch('titleName')
+  private async checkTitleOverflow() {
+    await this.$nextTick()
+    const titleElement = this.$refs.title as HTMLElement
+    if (titleElement?.scrollWidth > 200) {
+      this.showTitleTooltip = true
+    } else {
+      this.showTitleTooltip = false
+    }
+  }
+
+  private checkScriptOption(optionName: 'function' | 'schema', optionMethod: 'received' | 'publish') {
+    const applyOption: any = this.scriptOption?.apply
+    const optionNameExists = Boolean(this.scriptOption?.[optionName]?.name)
+
+    return this.scriptOption && ['all', optionMethod].includes(applyOption) && optionNameExists
+  }
+
+  private updateMeta(message: MessageModel, optionName: 'function' | 'schema', optionMethod: 'received' | 'publish') {
+    if (this.checkScriptOption(optionName, optionMethod)) {
+      const metaObj = JSON.parse(message.meta || '{}')
+      metaObj[`${optionName}Name`] = this.scriptOption?.[optionName]?.name
+      message.meta = JSON.stringify(metaObj)
+    }
+  }
+
+  private updateMetaMsgType(message: MessageModel, msgType: PayloadType) {
+    const metaObj = JSON.parse(message.meta || '{}')
+    metaObj['msgType'] = msgType
+    message.meta = JSON.stringify(metaObj)
+  }
+
+  private updateMetaError(message: MessageModel, error: string) {
+    const metaObj = JSON.parse(message.meta || '{}')
+    metaObj['msgError'] = error
+    message.meta = JSON.stringify(metaObj)
+  }
+
+  private updateMetaBigData(message: MessageModel) {
+    const metaObj = JSON.parse(message.meta || '{}')
+    metaObj['isLargeData'] = true
+    message.meta = JSON.stringify(metaObj)
+  }
+
   // Connect
-  public connect(): boolean | void {
-    this.isReconnect = false
+  public async connect(): Promise<boolean | void> {
     if (this.client.connected || this.connectLoading) {
       return false
     }
     this.connectLoading = true
     // new client
     try {
-      const { curConnectClient, connectUrl } = createClient(this.record)
+      const { curConnectClient, connectUrl } = await createClient(this.record)
       this.client = curConnectClient
-      const { id } = this.record
+      const { id, name, host, protocol, port, path, clientId } = this.record
       if (id && this.client.on) {
-        this.$log.info(`MQTTX client with ID ${id} assigned`)
+        this.$log.info(`Assigned ID ${id} to MQTTX client`)
         this.client.on('connect', this.onConnect)
         this.client.on('error', this.onError)
         this.client.on('reconnect', this.onReConnect)
+        this.client.on('disconnect', this.onDisconnect)
+        this.client.on('offline', this.onOffline)
         this.onMessageArrived(this.client as MqttClient, id)
+        // Debug MQTT Packet Log
+        this.client.on('packetsend', (packet) => this.onPacketSent(packet, name))
+        this.client.on('packetreceive', (packet) =>
+          this.onPacketReceived(packet, { host, name, clientId, id, protocol, port, path }),
+        )
       }
 
       const protocolLogMap: ProtocolMap = {
@@ -547,22 +653,12 @@ export default class ConnectionsDetail extends Vue {
         wss: 'MQTT/WSS connection',
       }
       const curOptionsProtocol: Protocol = (this.client as MqttClient).options.protocol as Protocol
-      let connectLog = `Connect client ${this.record.name}, ${protocolLogMap[curOptionsProtocol]}: ${connectUrl}`
-      if (this.record.mqttVersion === '5.0') {
-        const propertiesLog = JSON.stringify(this.record.properties)
-        connectLog += ` with Properties: ${propertiesLog}`
-      }
+      let connectLog = `Client ${this.record.name} connected using ${protocolLogMap[curOptionsProtocol]} at ${connectUrl}`
       this.$log.info(connectLog)
     } catch (error) {
       const err = error as Error
       this.connectLoading = false
-      this.$notify({
-        title: err.toString(),
-        message: '',
-        type: 'error',
-        duration: 4000,
-        offset: 30,
-      })
+      this.notifyMsgWithCopilot(err.toString())
     }
   }
 
@@ -579,20 +675,26 @@ export default class ConnectionsDetail extends Vue {
     })
       .then(async () => {
         if (id) {
-          const { connectionService } = useServices()
-          const res: ConnectionModel | undefined = await connectionService.delete(id)
-          if (res) {
+          const { connectionService, topicNodeService } = useServices()
+          const res = await Promise.all([
+            topicNodeService.deleteTopicNodesForConnection(id),
+            connectionService.delete(id),
+          ])
+          const [_, connection] = res
+          if (connection) {
             this.$emit('delete')
             this.$message.success(this.$tc('common.deleteSuccess'))
-            if (res.id) {
-              this.removeActiveConnection({ id: res.id })
-              this.$log.info(`MQTTX remove connection ${res.name} (clientID ${res.clientId}) success`)
+            if (connection.id) {
+              this.removeActiveConnection({ id: connection.id })
+              this.$log.info(
+                `Successfully removed MQTTX connection ${connection.name}@${connection.host} with clientID ${connection.clientId}`,
+              )
             }
           }
         }
       })
       .catch((error) => {
-        // ignore(error)
+        this.$log.error(error.toString())
       })
   }
 
@@ -608,7 +710,7 @@ export default class ConnectionsDetail extends Vue {
       clearInterval(this.sendTimeId)
       this.sendTimeId = null
       this.$message.success(this.$tc('connections.stopTimedMessage'))
-      this.$log.info(`${this.record.name} stopped sending timed messages`)
+      this.$log.info(`Timed messages sending stopped for ${this.record.name}@${this.record.host}`)
     }
   }
 
@@ -620,13 +722,16 @@ export default class ConnectionsDetail extends Vue {
     const filterBarOffsetHeight = filterBar.offsetHeight
 
     this.messageListMarginTop = filterBarOffsetHeight > 56 ? filterBarOffsetHeight - 37 : 19
-
-    this.messageListHeight =
-      document.body.offsetHeight -
-      connectionTopbar.offsetHeight -
-      connectionFooter.offsetHeight -
-      filterBarOffsetHeight -
-      8
+    try {
+      this.messageListHeight =
+        document.body.offsetHeight -
+        connectionTopbar.offsetHeight -
+        connectionFooter.offsetHeight -
+        filterBarOffsetHeight -
+        8
+    } catch (error) {
+      // ignore(error)
+    }
   }
 
   // Show context menu
@@ -663,24 +768,33 @@ export default class ConnectionsDetail extends Vue {
   // Delete message
   private async handleDeleteMessage() {
     let id = ''
+    let isOut = false
     if (this.selectedMessage && this.selectedMessage.id) {
       id = this.selectedMessage.id.toString()
+      isOut = this.selectedMessage.out
     }
     const { messageService } = useServices()
-    const res: MessageModel | undefined = await messageService.delete(id)
+    let res: MessageModel | undefined
+    if (isOut) {
+      res = await messageService.delete(id)
+    } else {
+      const { topicNodeService } = useServices()
+      const [_res, _] = await Promise.all([messageService.delete(id), topicNodeService.updateTopicNodeByMessageId(id)])
+      res = _res
+    }
     if (res) {
       this.showContextmenu = false
       this.$message.success(this.$tc('common.deleteSuccess'))
       this.$emit('reload')
       this.$log.info(
-        `Delete message success, Name: ${this.record.name} ClientID: ${this.record.clientId}, Payload: ${JSON.stringify(
-          res.payload,
-        )}`,
+        `Successfully deleted message from ${this.record.name} with ClientID ${
+          this.record.clientId
+        } and payload ${jsonStringify(res.payload)}`,
       )
     } else {
       this.showContextmenu = false
       this.$message.error(this.$tc('common.deletefailed'))
-      this.$log.info('Delete message failed')
+      this.$log.info('Message deletion failed')
     }
   }
 
@@ -693,7 +807,6 @@ export default class ConnectionsDetail extends Vue {
     } else {
       this.showClientInfo = $clientInfoVisible
     }
-    this.showSubs = this.showSubscriptions
     if (currentActiveConnection) {
       this.client = currentActiveConnection.client
       this.setClientsMessageListener()
@@ -702,12 +815,6 @@ export default class ConnectionsDetail extends Vue {
         connected: false,
       }
     }
-  }
-
-  // Show subscription list
-  private handleShowSubs() {
-    this.showSubs = !this.showSubs
-    this.changeShowSubscriptions({ showSubscriptions: this.showSubs })
   }
 
   // Collapse top client info
@@ -748,7 +855,10 @@ export default class ConnectionsDetail extends Vue {
       case 'timedMessage':
         this.handleTimedMessage()
         break
-      case 'bytesStatistics':
+      case 'syncToTopicTree':
+        this.showSyncTopicTreeDialog = true
+        break
+      case 'trafficMonitor':
         this.handleSubSystemTopic()
         break
       case 'useScript':
@@ -762,9 +872,17 @@ export default class ConnectionsDetail extends Vue {
     }
   }
 
+  private handleSyncTopicTreeSuccess() {
+    setTimeout(() => {
+      this.$router.push({
+        name: 'TopicTree',
+      })
+    }, 1000)
+  }
+
   // Route to edit page
   private handleEdit(id: string): boolean | void {
-    if (this.client.connected) {
+    if (this.client.connected || this.connectLoading) {
       return false
     }
     this.$router.push({
@@ -774,7 +892,9 @@ export default class ConnectionsDetail extends Vue {
   }
 
   private hideNewMsgsTip() {
-    if (!this.moreMsgAfter) this.newMsgsCount = 0
+    if (!this.moreMsgAfter && this.newMsgsCount > 0) {
+      this.loadMessages()
+    }
   }
 
   // Return messages
@@ -787,76 +907,110 @@ export default class ConnectionsDetail extends Vue {
       topic: this.activeTopic,
       searchParams: this.searchParams,
     })
-    this.moreMsgAfter = false
-    if (this.recordMsgs.total > limit) {
-      this.moreMsgBefore = true
-    } else {
-      this.moreMsgBefore = false
-    }
+    this.moreMsgAfter = true
+    this.moreMsgBefore = this.recordMsgs.total > limit
   }
 
+  // Load More Messages after and before
   private async loadMoreMessages(mode: 'before' | 'after' = 'before') {
-    if ((mode === 'before' && !this.moreMsgBefore) || (mode === 'after' && !this.moreMsgAfter)) return
-
+    if (this.shouldSkipLoading(mode)) return
     if (this.recordMsgs.list.length === 0) {
-      this.handleMessages()
+      this.loadMessages()
       return
     }
-
     const msgListRef = this.getMsgListRef()
-    mode === 'before' ? (msgListRef.showBeforeLoadingIcon = true) : (msgListRef.showAfterLoadingIcon = true)
-
+    try {
+      this.setLoadingState(mode, msgListRef, true)
+      let _messages = _.cloneDeep(this.recordMsgs.list)
+      const { curMsgId, list, moreMsg } = await this.fetchMoreMessages(mode, _messages)
+      this.updatePaginationFlags(mode, moreMsg)
+      if (list.length > 0) {
+        this.updateRecordMsgList(list, mode, _messages)
+        this.scrollToMessage(curMsgId as string, mode)
+      }
+    } catch (error) {
+      const err = error as Error
+      this.$log.error(`Failed to load more messages: ${err.toString()} on scroll ${mode === 'before' ? 'up' : 'down'}`)
+    } finally {
+      this.setLoadingState(mode, msgListRef, false)
+    }
+  }
+  private shouldSkipLoading(mode: 'before' | 'after'): boolean {
+    return (mode === 'before' && !this.moreMsgBefore) || (mode === 'after' && !this.moreMsgAfter)
+  }
+  private setLoadingState(mode: 'before' | 'after', msgListRef: MessageList, isLoading: boolean): void {
+    if (mode === 'before') {
+      msgListRef.showBeforeLoadingIcon = isLoading
+    } else {
+      msgListRef.showAfterLoadingIcon = isLoading
+    }
+  }
+  private async fetchMoreMessages(mode: 'before' | 'after', messages: MessageModel[]) {
     const { messageService } = useServices()
-    let _messages = _.cloneDeep(this.recordMsgs.list)
-    const currentMsg = mode === 'before' ? _messages[0] : _messages[_messages.length - 1]
+    const currentMsg = mode === 'before' ? messages[0] : messages[messages.length - 1]
     const { id, createAt } = currentMsg
     const { list, moreMsg } = await messageService.loadMore(this.curConnectionId, createAt, mode, {
       msgType: this.msgType,
       topic: this.activeTopic,
       searchParams: this.searchParams,
     })
-
+    return { curMsgId: id, list, moreMsg }
+  }
+  private updatePaginationFlags(mode: 'before' | 'after', moreMsg: 'before' | 'after' | false): void {
     moreMsg === 'before' && (this.moreMsgBefore = true)
     moreMsg === 'after' && (this.moreMsgAfter = true)
     moreMsg === false && mode === 'before' && (this.moreMsgBefore = false)
     moreMsg === false && mode === 'after' && (this.moreMsgAfter = false)
     mode === 'before' && (this.moreMsgAfter = true)
     mode === 'after' && (this.moreMsgBefore = true)
-
-    if (list.length > 0) {
-      if (mode === 'before') {
-        _messages.unshift(...list)
-        if (_messages.length > 40) {
-          _messages = _messages.slice(0, 40)
-        }
-      } else {
-        _messages.push(...list)
-        if (_messages.length > 40) {
-          _messages = _messages.slice(_messages.length - 40, _messages.length)
-        }
-      }
-      this.recordMsgs.list = _.cloneDeep(_messages)
-      const timer = setTimeout(() => {
-        this.$nextTick(() => {
-          const idBox = document.querySelector(`#${id}`)
-          idBox && idBox.scrollIntoView({ behavior: 'auto', block: mode === 'before' ? 'start' : 'end' })
-        })
-        clearTimeout(timer)
-      }, 50)
+  }
+  private updateRecordMsgList(
+    newMessages: MessageModel[],
+    mode: 'before' | 'after',
+    currentMessages: MessageModel[],
+  ): void {
+    let updatedMessages = currentMessages
+    if (mode === 'before') {
+      updatedMessages.unshift(...newMessages)
+      updatedMessages = updatedMessages.slice(0, MAX_MESSAGES_COUNT)
+    } else {
+      updatedMessages.push(...newMessages)
+      updatedMessages = updatedMessages.slice(-MAX_MESSAGES_COUNT)
     }
-    mode === 'before' ? (msgListRef.showBeforeLoadingIcon = false) : (msgListRef.showAfterLoadingIcon = false)
+    this.recordMsgs.list = _.cloneDeep(updatedMessages)
+  }
+  private async scrollToMessage(messageId: string, mode: 'before' | 'after'): Promise<void> {
+    const timer = setTimeout(() => {
+      this.$nextTick(() => {
+        const msgIdBox = document.querySelector(`#${messageId}`)
+        msgIdBox && msgIdBox.scrollIntoView({ behavior: 'auto', block: mode === 'before' ? 'start' : 'end' })
+      })
+      clearTimeout(timer)
+    }, 50)
   }
 
-  private async handleMessages(opts: { limit?: number; behavior?: ScrollBehavior } = {}) {
-    const defaultOpts: { limit?: number; behavior?: ScrollBehavior } = { limit: 20, behavior: 'smooth' }
-    const { limit, behavior } = { ...defaultOpts, ...opts }
+  private async loadMessages(opts: { limit?: number } = {}) {
+    const defaultOpts: { limit?: number } = { limit: 20 }
+    const { limit } = { ...defaultOpts, ...opts }
     await this.getMessages(limit)
-    this.scrollToBottom(behavior)
+    this.scrollToBottom()
   }
 
   private loadNewMsg() {
     this.msgType = 'all'
-    this.handleMessages({ behavior: 'auto' })
+    this.loadMessages()
+  }
+
+  private getReceivedMsgType(): PayloadType {
+    const _receivedMsgType = localStorage.getItem('receivedMsgType')
+    if (!_receivedMsgType) {
+      return 'Plaintext'
+    }
+    return _receivedMsgType as PayloadType
+  }
+
+  private handleReceivedMsgTypeChange(receivedMsgType: PayloadType) {
+    localStorage.setItem('receivedMsgType', receivedMsgType)
   }
 
   // Clear messages
@@ -871,35 +1025,46 @@ export default class ConnectionsDetail extends Vue {
       client: this.client,
     })
     if (this.record.id) {
-      const { messageService } = useServices()
-      await messageService.cleanInConnection(this.record.id)
-      this.$log.info(`${this.record.name} was cleaned history connection messages`)
+      const { messageService, topicNodeService } = useServices()
+      await Promise.all([
+        topicNodeService.deleteTopicNodesForConnection(this.record.id),
+        messageService.cleanInConnection(this.record.id),
+      ])
+      this.$log.info(
+        `History connection messages and topic tree nodes were cleaned for ${this.record.name}@${this.record.host}`,
+      )
     }
   }
 
   // Message type changed
   private handleMsgTypeChanged(type: MessageType) {
     this.msgType = type
-    this.handleMessages()
+    this.loadMessages()
   }
 
   // Search messages
   private async searchContent() {
     this.searchLoading = true
-    await this.handleMessages()
+    await this.loadMessages()
     this.searchLoading = false
   }
 
   // Delete topic item
   private handleTopicDelete(topic: string) {
     if (this.activeTopic === topic) this.activeTopic = ''
-    this.handleMessages()
+    this.loadMessages()
   }
 
   // Click topic item
   private handleTopicClick(sub: SubscriptionModel, reset: boolean) {
     reset ? (this.activeTopic = '') : (this.activeTopic = sub.topic)
-    this.handleMessages()
+    this.loadMessages()
+  }
+
+  private handleSubTopicError(errMsg: string, info?: string) {
+    this.notifyMsgWithCopilot(errMsg, info, () => {
+      this.subListRef.showDialog = false
+    })
   }
 
   private handleSearchOpen() {
@@ -919,15 +1084,13 @@ export default class ConnectionsDetail extends Vue {
       topic: '',
       payload: '',
     }
-    this.handleMessages()
+    this.loadMessages()
   }
 
   // Cancel connect
   private cancel() {
-    this.connectLoading = false
-    this.client.end!(true)
-    this.retryTimes = 0
-    this.$log.info(`MQTTX client connection cancel, Name: ${this.record.name}`)
+    this.forceCloseTheConnection()
+    this.$log.info(`Cancelled connection for MQTTX client named ${this.record.name}`)
   }
 
   // Disconnect
@@ -939,7 +1102,7 @@ export default class ConnectionsDetail extends Vue {
     this.disconnectLoding = true
     this.client.end!(false, () => {
       this.disconnectLoding = false
-      this.retryTimes = 0
+      this.reTryConnectTimes = 0
 
       this.changeActiveConnection({
         id: this.curConnectionId,
@@ -956,7 +1119,7 @@ export default class ConnectionsDetail extends Vue {
         this.setShowClientInfo(true)
       }
       this.$emit('reload')
-      this.$log.info(`MQTTX client disconnect, Name: ${this.record.name}, client ID: ${this.record.clientId}`)
+      this.$log.info(`MQTTX client named ${this.record.name} with client ID ${this.record.clientId} disconnected`)
     })
   }
 
@@ -977,7 +1140,7 @@ export default class ConnectionsDetail extends Vue {
     })
     this.setShowClientInfo(false)
     this.$emit('reload', false, false, this.handleReSubTopics)
-    this.$log.info(`${this.record.name} connect success, MQTT.js onConnect trigger`)
+    this.$log.info(`Successful connection for ${this.record.name}@${this.record.host}, MQTT.js onConnect trigger`)
   }
 
   // Error callback
@@ -986,27 +1149,18 @@ export default class ConnectionsDetail extends Vue {
     if (error) {
       msgTitle = error.toString()
     }
-    this.client.end!(true)
-    this.retryTimes = 0
-    this.connectLoading = false
-    this.$notify({
-      title: msgTitle,
-      message: '',
-      type: 'error',
-      duration: 4000,
-      offset: 30,
-    })
-    this.$log.error(`${this.record.name} connect fail, MQTT.js onError trigger, ${error.stack}`)
+    this.forceCloseTheConnection()
+    this.notifyMsgWithCopilot(msgTitle)
+    this.$log.error(
+      `Connection for ${this.record.name}@${this.record.host} failed, MQTT.js onError trigger, Error: ${error.stack}`,
+    )
     this.$emit('reload')
   }
 
   // Reconnect callback
   private onReConnect() {
-    this.isReconnect = true
     if (!this.record.reconnect) {
-      this.client.end!(true)
-      this.retryTimes = 0
-      this.connectLoading = false
+      this.forceCloseTheConnection()
       this.$notify({
         title: this.$tc('connections.connectFailed'),
         message: '',
@@ -1016,14 +1170,14 @@ export default class ConnectionsDetail extends Vue {
       })
       this.$emit('reload')
     } else {
-      if (this.retryTimes > this.maxReconnectTimes) {
-        this.$log.warn('Connection maxReconnectTimes limit, stop retry')
-        this.client.end!(true)
-        this.retryTimes = 0
-        this.connectLoading = false
+      this.reTryConnectTimes += 1
+      if (this.reTryConnectTimes > this.maxReconnectTimes) {
+        this.$log.warn('Max reconnect limit reached, stopping retries')
+        this.forceCloseTheConnection()
       } else {
-        this.$log.info(`${this.record.name} reconnect: ${this.retryTimes} times retry`)
-        this.retryTimes += 1
+        this.$log.info(
+          `Retrying connection for ${this.record.name}@${this.record.host}, attempt: [${this.reTryConnectTimes}/${this.maxReconnectTimes}]`,
+        )
         this.connectLoading = true
         this.$notify({
           title: this.$tc('connections.reconnect'),
@@ -1038,9 +1192,96 @@ export default class ConnectionsDetail extends Vue {
 
   // Close connection callback
   private onClose() {
-    this.$log.info(`${this.record.name} connect close, MQTT.js onClose trigger`)
+    this.$log.info(`Connection for ${this.record.name}@${this.record.host} closed, MQTT.js onClose trigger`)
     this.connectLoading = false
-    this.isReconnect = false
+  }
+
+  // Emitted after receiving disconnect packet from broker. MQTT 5.0 feature.
+  private onDisconnect(packet: IDisconnectPacket) {
+    const reasonCode = packet.reasonCode!
+    const reason = reasonCode === 0 ? 'Normal disconnection' : getErrorReason('5.0', reasonCode)
+    this.notifyMsgWithCopilot(
+      this.$t('connections.onDisconnect', { reason, reasonCode }) as string,
+      JSON.stringify(packet),
+      () => {},
+      'warning',
+    )
+    const logMessage = 'Received disconnect packet from Broker. MQTT.js onDisconnect trigger'
+    this.$log.warn(logMessage)
+  }
+
+  // Emitted when the client goes offline.
+  private onOffline() {
+    this.$log.info(
+      `The connection ${this.record.name} (clientID ${this.record.clientId}) is offline. MQTT.js onOffline trigger`,
+    )
+  }
+
+  /**
+   * Handles the event when a packet is sent.
+   * @param {Packet} packet - The packet that was sent.
+   * @param {string} name - The name of the connection.
+   */
+  private onPacketSent(packet: Packet, name: string) {
+    this.$log.debug(`[${name}] Sent packet: ${JSON.stringify(packet)}`)
+  }
+
+  /**
+   * Handles the event when a packet is received.
+   *
+   * @param {Packet} packet - The received packet.
+   * @param {string} name - The name of the connection.
+   */
+  private onPacketReceived(
+    packet: Packet,
+    {
+      name,
+      host,
+      id,
+      clientId,
+      protocol,
+      port,
+      path,
+    }: {
+      name: string
+      host: string
+      id: string
+      clientId: string
+      protocol?: string
+      port: number
+      path: string
+    },
+  ) {
+    globalEventBus.emit('packetReceive', packet, {
+      name,
+      clientId,
+      host,
+      id,
+      protocol,
+      port,
+      path,
+    })
+    this.$log.debug(`[${name}] Received packet: ${JSON.stringify(packet)}`)
+  }
+
+  private forceCloseTheConnection() {
+    if (this.client.end) {
+      this.client.end(true, () => {
+        this.reTryConnectTimes = 0
+        this.connectLoading = false
+        this.$log.warn(`MQTTX force closed the connection ${this.record.name} (Client ID: ${this.record.clientId})`)
+      })
+    }
+  }
+
+  private forceStopToReconnect() {
+    if (this.client.reconnecting && this.client.connected === false) {
+      this.client.reconnecting = false
+      this.forceCloseTheConnection()
+      this.$log.warn(
+        `MQTTX force stopped reconnecting for ${this.record.name}@${this.record.host} - Client ID: ${this.record.clientId}`,
+      )
+    }
   }
 
   // Search message
@@ -1049,117 +1290,145 @@ export default class ConnectionsDetail extends Vue {
     return res && res.length ? true : false
   }
 
-  private scrollToBottom(behavior: ScrollBehavior = 'smooth') {
+  private scrollToBottom() {
     this.$nextTick(async () => {
       const msgListRef = this.getMsgListRef()
       const msgListDOM = msgListRef?.$el
       if (msgListDOM) {
         msgListRef.loadSwitch = false
         msgListDOM.scrollTo({
-          top: msgListDOM.scrollHeight + 160,
+          top: msgListDOM.scrollHeight + SCROLL_HEIGHT_COMPENSATION,
           left: 0,
-          behavior,
         })
-        await delay(1000)
         msgListRef.loadSwitch = true
       }
     })
   }
 
   // Set script
-  private handleSetScript(script: ScriptModel, applyType: MessageType) {
+  private handleSetScript(func: ScriptModel, schema: ScriptModel, config: any, applyType: MessageType) {
     const currentScript: ScriptState = {
       apply: applyType,
-      content: script,
+      function: func,
+      schema: schema,
+      config: config,
     }
     this.setScript({ currentScript })
     this.$message.success(this.$tc('script.startScript'))
-    this.$log.info(`${this.record.name} set script successed`)
+    this.$log.info(`Script set successfully for ${this.record.name}@${this.record.host}`)
   }
 
   // Remove script
   private removeScript() {
     this.setScript({ currentScript: null })
     this.$message.success(this.$tc('script.stopScirpt'))
-    this.$log.info(`${this.record.name} remove script successed`)
+    this.$log.info(`Script removed successfully from ${this.record.name}@${this.record.host}`)
   }
 
-  // Processing message
-  private processMessage(topic: string, payload: Buffer, packet: IPublishPacket) {
+  /*
+   * Handles the processing of received MQTT messages
+   * according to the specified schema, type, and user-defined function
+   */
+  private processReceivedMessage(topic: string, payload: Buffer, packet: IPublishPacket) {
     const { qos, retain, properties } = packet
-    const convertPayload = this.convertPayloadByType(payload, this.receivedMsgType, 'received') as string
-    const receviedPayload = this.convertPayloadByScript(convertPayload, 'received')
+    let receivedPayload
+    let jsonMsgError = ''
+    /*
+     * Payload processing pipeline for receiving a message:
+     *      1. Raw Payload
+     *           ⬇️
+     *      2. [Schema | Type]: Decoding via custom schema (if defined) or default payload type conversion
+     *           ⬇️
+     *      3. [Function]: User-defined script processing to possibly further modify the payload
+     *           ⬇️
+     *      4. Final Payload: Ready for use in the application
+     * Note:
+     * - Function processing happens after schema/type decoding to allow the function to work with a more structured data.
+     */
+    if (
+      (this.scriptOption?.function && ['all', 'received'].includes(this.scriptOption.apply)) ||
+      this.receivedMsgType !== 'Plaintext'
+    ) {
+      const schemaPayload = this.convertPayloadBySchema(payload, 'received', this.receivedMsgType)
+      if (!schemaPayload) {
+        return
+      }
+      let convertedPayload
+      try {
+        convertedPayload = this.convertPayloadByType(schemaPayload, this.receivedMsgType, 'received')
+      } catch (e) {
+        jsonMsgError = (e as Error).toString()
+      }
+      if (!convertedPayload) {
+        convertedPayload = schemaPayload
+      }
+      receivedPayload = this.convertPayloadByFunction(convertedPayload.toString(), 'received')
+      if (this.scriptOption?.schema && this.receivedMsgType === 'Plaintext') {
+        receivedPayload = this.scriptOption?.config?.name + ' ' + printObjectAsString(JSON.parse(receivedPayload))
+      }
+    } else {
+      receivedPayload = this.convertPayloadBySchema(payload, 'received')
+      if (!receivedPayload) {
+        return
+      }
+    }
     const receivedMessage: MessageModel = {
       id: getMessageId(),
       out: false,
       createAt: time.getNowDate(),
       topic,
-      payload: receviedPayload,
+      payload: receivedPayload.toString(),
       qos,
       retain,
       properties,
     }
-    return receivedMessage
-  }
-
-  // Bytes Statistics
-  private bytesStatistics(messages: MessageModel[]) {
-    if (messages.length) {
-      let bytesTimes = 0
-      let _chartData: ChartDataModel = this.chartData
-      let _version = this.version
-      let _uptime = this.uptime
-      messages.forEach((msg: MessageModel) => {
-        const data = getBytes(msg)
-        const version = getVersion(msg)
-        const uptime = getUptime(msg)
-        data && ((_chartData = data), (bytesTimes += 1))
-        version && (_version = version)
-        uptime && (_uptime = uptime)
-      })
-      this.chartData = _chartData
-      this.version = _version
-      this.uptime = _uptime
-      if (this.chartData && bytesTimes) {
-        const bytesStatistics = this.$refs.bytesStatistics as BytesStatistics
-        this.$nextTick(() => {
-          bytesStatistics.updateChart()
-        })
-      }
+    this.updateMeta(receivedMessage, 'function', 'received')
+    this.updateMeta(receivedMessage, 'schema', 'received')
+    this.updateMetaMsgType(receivedMessage, this.receivedMsgType)
+    if (['JSON', 'CBOR', 'MsgPack'].includes(this.receivedMsgType) && jsonMsgError) {
+      this.updateMetaError(receivedMessage, jsonMsgError)
     }
+    if (isLargeData(receivedMessage.payload)) {
+      this.updateMetaBigData(receivedMessage)
+    }
+
+    return receivedMessage
   }
 
   // Save message
   private async saveMessage(id: string, messages: MessageModel[]) {
-    if (messages.length) {
-      const { messageService } = useServices()
-      await messageService.pushToConnection(messages, id)
+    try {
+      if (messages.length) {
+        const { messageService } = useServices()
+        await messageService.pushMsgsToConnection(messages, id)
+      }
+    } catch (error) {
+      this.$log.error((error as Error).toString())
     }
   }
 
   // Print message log
   private printMessageLog(id: string, message: MessageModel) {
-    const { topic, retain } = message
-    if (id === this.curConnectionId) {
-      const isActiveTopicMessages = matchTopicMethod(this.activeTopic, topic)
-      const isFromActiveTopic = this.msgType !== 'publish' && this.activeTopic && isActiveTopicMessages
-      const isFromNotActiveTopic = this.msgType !== 'publish' && !this.activeTopic
-      if (isFromActiveTopic || isFromNotActiveTopic) {
-        this.$log.info(`Message Arrived with topic: ${topic}`)
-        let receivedLog = `${this.record.name} message arrived: message added "${
-          message.id
-        }" and added to topic: "${topic}", payload: ${JSON.stringify(message.payload)} MQTT.js onMessageArrived trigger`
-        if (this.record.mqttVersion === '5.0') {
-          const logProperties = JSON.stringify(message.properties)
-          receivedLog += ` with Properties: ${logProperties}`
+    try {
+      const { topic, retain } = message
+      if (id === this.curConnectionId) {
+        const isActiveTopicMessages = matchTopicMethod(this.activeTopic, topic)
+        const isFromActiveTopic = this.msgType !== 'publish' && this.activeTopic && isActiveTopicMessages
+        const isFromNotActiveTopic = this.msgType !== 'publish' && !this.activeTopic
+        if (isFromActiveTopic || isFromNotActiveTopic) {
+          let receivedLog = `Message arrived for ${this.record.name}@${
+            this.record.host
+          } with topic: "${topic}". Message ID: "${message.id}", payload: ${jsonStringify(
+            message.payload,
+          )}. MQTT.js onMessageArrived trigger`
+          this.$log.info(receivedLog)
         }
-        if (retain) {
-          receivedLog += `, Retain Message`
-        }
-        this.$log.info(receivedLog)
+      } else {
+        this.$log.info(`Connection with ID: ${id} has received a new, unread message`)
       }
-    } else {
-      this.$log.info(`ID: ${id} received an unread message`)
+    } catch (error) {
+      this.$log.error((error as Error).toString())
+      return
     }
   }
 
@@ -1172,57 +1441,83 @@ export default class ConnectionsDetail extends Vue {
     const msgListDOM = msgListRef?.$el
     if (msgListDOM) {
       const { scrollTop, scrollHeight, clientHeight } = msgListDOM
-      const isScrollBottom = scrollTop + clientHeight >= scrollHeight - 250
+      const isScrollBottom = scrollTop + clientHeight >= scrollHeight - SCROLL_BOTTOM_THRESHOLD
       return isScrollBottom
     }
   }
 
-  // Render message
-  private renderMessage(id: string, msgs: MessageModel | MessageModel[], msgType: 'received' | 'publish' = 'received') {
-    const unreadMsgIncrement = (count: number) => this.unreadMessageIncrement({ id, increasedCount: count })
-    const totalCountIncrement = (count: number) => (this.recordMsgs.total += count)
-    const receivedTotalIncrement = (count: number) => (this.recordMsgs.receivedTotal += count)
-    const publishedTotalIncrement = (count: number) => (this.recordMsgs.publishedTotal += count)
-    const newMsgsCountIncrement = (count: number) => (this.newMsgsCount += count)
-    const pushMsgs = (msgs: MessageModel[]) => {
-      let _messages = _.cloneDeep(this.recordMsgs.list)
-      msgs.forEach((msg: MessageModel) => {
-        const isActiveTopicMessages = matchTopicMethod(this.activeTopic, msg.topic)
-        const isActiveMsgType =
-          this.msgType === 'all' || (this.msgType === 'publish' && msg.out) || (this.msgType === 'received' && !msg.out)
-        if (isActiveMsgType && (!this.activeTopic || isActiveTopicMessages)) _messages.push(msg)
-      })
-      if (_messages.length > 40) _messages = _messages.slice(_messages.length - 40)
-      this.recordMsgs.list = _messages
-    }
-    if (!Array.isArray(msgs)) msgs = [msgs]
-    if (id !== this.curConnectionId) {
-      unreadMsgIncrement(msgs.length)
-      return
-    }
-    totalCountIncrement(msgs.length)
-    const receivedMsgs = msgs.filter((msg: MessageModel) => !msg.out)
-    const publishedMsgs = msgs.filter((msg: MessageModel) => msg.out)
-    receivedTotalIncrement(receivedMsgs.length)
-    publishedTotalIncrement(publishedMsgs.length)
-    const isScrollBottom = this.isScrollBottom()
-    if (msgType === 'received' && !isScrollBottom) {
-      newMsgsCountIncrement(receivedMsgs.length)
-      return
-    }
-    this.newMsgsCount = 0
-    if (!this.moreMsgAfter && isScrollBottom) {
-      pushMsgs(msgs)
-      this.scrollToBottom()
-      return
-    }
-    this.handleMessages()
+  private isMessageTypeActive(msg: MessageModel): boolean {
+    return (
+      this.msgType === 'all' || (this.msgType === 'publish' && msg.out) || (this.msgType === 'received' && !msg.out)
+    )
   }
 
-  // Recevied message
-  private onMessageArrived(client: MqttClient, id: string) {
-    const unsubscribe$ = new Subject()
+  // Push messages to the list
+  private batchUpdateMsgs(incomingMsgs: MessageModel[]) {
+    let _messages = _.cloneDeep(this.recordMsgs.list)
+    incomingMsgs.forEach((msg: MessageModel) => {
+      const isActiveTopicMessages = matchTopicMethod(this.activeTopic, msg.topic)
+      const isActiveMsgType = this.isMessageTypeActive(msg)
+      if (isActiveMsgType && (!this.activeTopic || isActiveTopicMessages)) {
+        _messages.push(msg)
+      }
+    })
+    if (_messages.length > MAX_MESSAGES_COUNT) {
+      _messages = _messages.slice(_messages.length - MAX_MESSAGES_COUNT)
+    }
+    this.recordMsgs.list = _messages
+  }
 
+  // Render message
+  private renderMessage(id: string, msgs: MessageModel | MessageModel[], msgType: 'received' | 'publish' = 'received') {
+    try {
+      const isScrollBottom = this.isScrollBottom()
+      // Convert single message to array if needed
+      if (!Array.isArray(msgs)) msgs = [msgs]
+
+      // Handle unread messages for non-current connections
+      const unreadMsgIncrement = (count: number) => this.unreadMessageIncrement({ id, increasedCount: count })
+      if (id !== this.curConnectionId) {
+        unreadMsgIncrement(msgs.length)
+        return
+      }
+
+      // Increment total message count
+      const totalCountIncrement = (count: number) => (this.recordMsgs.total += count)
+      totalCountIncrement(msgs.length)
+
+      // Handle received messages count
+      const receivedTotalIncrement = (count: number) => (this.recordMsgs.receivedTotal += count)
+      const receivedMsgs = msgs.filter((msg: MessageModel) => !msg.out)
+      receivedTotalIncrement(receivedMsgs.length)
+
+      // Handle published messages count
+      const publishedTotalIncrement = (count: number) => (this.recordMsgs.publishedTotal += count)
+      const publishedMsgs = msgs.filter((msg: MessageModel) => msg.out)
+      publishedTotalIncrement(publishedMsgs.length)
+
+      // Check scroll position and handle new message notifications
+      const newMsgsCountIncrement = (count: number) => (this.newMsgsCount += count)
+      const isReceivedMsg = msgType === 'received'
+      if (isReceivedMsg && !isScrollBottom) {
+        newMsgsCountIncrement(receivedMsgs.length)
+        return
+      }
+      this.newMsgsCount = 0
+      this.batchUpdateMsgs(msgs)
+      this.scrollToBottom()
+    } catch (error) {
+      this.$log.error((error as Error).toString())
+    }
+  }
+
+  // received message
+  private onMessageArrived(client: MqttClient, id: string) {
+    const unsubscribe$ = new Subject<void>()
+    const messageBuffer$ = new Subject<MessageModel>()
+    let isBufferEnabled = false
+
+    // Add close event handler
     if (client.listenerCount('close') <= 1) {
       fromEvent(client, 'close').subscribe(() => {
         unsubscribe$.next()
@@ -1231,41 +1526,65 @@ export default class ConnectionsDetail extends Vue {
       })
     }
 
-    const messageSubject$ = fromEvent(client, 'message').pipe(takeUntil(unsubscribe$))
-
-    const processMessageSubject$ = messageSubject$.pipe(
+    // Process message stream
+    const messageSubject$ = fromEvent(client, 'message').pipe(
+      takeUntil(unsubscribe$),
       map(([topic, payload, packet]: [string, Buffer, IPublishPacket]) => {
-        return this.processMessage(topic, payload, packet)
+        return this.processReceivedMessage(topic, payload, packet)
       }),
+      shareReplay(1),
     )
 
-    const SYSMessageSubject$ = processMessageSubject$.pipe(
-      filter((m: MessageModel) => this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS')),
+    // Save messages with QoS filtering
+    messageSubject$
+      .pipe(
+        filter((message: MessageModel) => !ignoreQoS0Message(message.qos)),
+        bufferTime(1000),
+      )
+      .subscribe((messages: MessageModel[]) => {
+        if (messages.length) {
+          this.saveMessage(id, messages)
+        }
+      })
+
+    // Rate monitoring stream
+    const rateCheck$ = messageSubject$.pipe(
+      bufferTime(MESSAGES_BUFFER_TIME),
+      map((messages) => messages.length),
+      map((rate) => rate > MESSAGE_RATE_THRESHOLD),
+      distinctUntilChanged(),
     )
 
-    const nonSYSMessageSubject$ = processMessageSubject$.pipe(
-      filter((m: MessageModel) => !(this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS'))),
-    )
+    // Toggle buffer mode based on message rate
+    rateCheck$.subscribe((shouldEnableBuffer) => {
+      isBufferEnabled = shouldEnableBuffer
+      if (isBufferEnabled) {
+        this.$log.info(`Message buffer mode enabled (> ${MESSAGE_RATE_THRESHOLD}/s)`)
+      }
+    })
 
-    // Print message log
-    nonSYSMessageSubject$.subscribe((message: MessageModel) => {
+    // Handle message rendering with dynamic buffering
+    messageSubject$.subscribe((message) => {
+      if (!message) return
       this.printMessageLog(id, message)
+      if (isBufferEnabled) {
+        messageBuffer$.next(message)
+      } else {
+        this.renderMessage(id, message)
+      }
     })
 
-    // Render messages
-    nonSYSMessageSubject$.pipe(bufferTime(500)).subscribe((messages: MessageModel[]) => {
-      messages.length && this.renderMessage(id, messages)
-    })
-
-    // Save messages
-    nonSYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
-      messages.length && this.saveMessage(id, messages)
-    })
-
-    // Bytes statistics
-    SYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
-      this.bytesStatistics(messages)
-    })
+    // Buffer rendering stream
+    messageBuffer$
+      .pipe(
+        bufferTime(MESSAGES_BUFFER_TIME),
+        filter((messages) => messages.length > 0),
+      )
+      .subscribe((messages) => {
+        if (messages.length) {
+          this.renderMessage(id, messages)
+        }
+      })
   }
 
   // Set timed message success
@@ -1273,119 +1592,211 @@ export default class ConnectionsDetail extends Vue {
     this.sendFrequency = time
   }
 
-  // Set timed message
+  /**
+   * Sends a message. If a send frequency is defined, it also sets up a timed message.
+   */
   private async sendMessage(
     message: MessageModel,
     type: PayloadType,
-    aftersendOneMessageCallback?: (isNewPayload: boolean) => void,
+    afterpublishMessageCallback?: (isNewPayload: boolean) => void,
     afterCallback?: () => void,
   ): Promise<void> {
-    await this.sendOneMessage(message, type, aftersendOneMessageCallback)
+    await this.publishMessage({ ...message }, type, afterpublishMessageCallback)
     if (this.sendFrequency) {
-      this.$message.success(`${this.$t('connections.startTimedMessage')}${this.sendFrequency}`)
-      this.$log.info(`${this.record.name} opened timed message successfully, frequency(s): ${this.sendFrequency}s`)
+      this.notifyTimedMessageSuccess()
       this.timedSendMessage(this.sendFrequency, message, type)
     }
-    afterCallback && afterCallback()
+    afterCallback?.()
   }
 
-  // Set timed message
+  private throttleSendMessage = _.throttle(this.sendMessage, 200, { leading: true, trailing: false })
+
+  /**
+   * Notifies the user about the successful setup of a timed message.
+   */
+  private notifyTimedMessageSuccess() {
+    this.$message.success(`${this.$t('connections.startTimedMessage')}${this.sendFrequency}`)
+    this.$log.info(
+      `Timed message for ${this.record.name}@${this.record.host} started successfully with a frequency of ${this.sendFrequency} seconds.`,
+    )
+  }
+
+  /**
+   * Sets up a message to be sent at regular intervals defined by the 'time' parameter.
+   */
   private timedSendMessage(time: number, message: MessageModel, type: PayloadType) {
     this.stopTimedSend()
     this.sendTimedMessageCount += 1
     this.sendTimeId = window.setInterval(() => {
-      const { ...oneMessage } = message
-      let { id } = oneMessage
-      id = getMessageId()
-      this.sendOneMessage(Object.assign(oneMessage, { id }), type)
+      message.id = getMessageId()
+      this.publishMessage(message, type)
     }, time * 1000)
   }
 
+  /**
+   * Inserts the message history into local storage.
+   */
   private async insertHistory(payload: HistoryMessagePayloadModel, header: HistoryMessageHeaderModel) {
     const { historyMessagePayloadService, historyMessageHeaderService } = useServices()
-    const willUpdatePayloadID: string | null = await hasMessagePayloadID(payload)
-    const willUpdateHeaderID: string | null = await hasMessageHeaderID(header)
-    willUpdatePayloadID
-      ? await historyMessagePayloadService.updateCreateAt(willUpdatePayloadID)
+    const payloadIdToUpdate = await hasMessagePayloadID(payload)
+    const headerIdToUpdate = await hasMessageHeaderID(header)
+
+    payloadIdToUpdate
+      ? await historyMessagePayloadService.updateCreateAt(payloadIdToUpdate)
       : await historyMessagePayloadService.create(payload)
-    willUpdateHeaderID
-      ? await historyMessageHeaderService.updateCreateAt(willUpdateHeaderID)
+
+    headerIdToUpdate
+      ? await historyMessageHeaderService.updateCreateAt(headerIdToUpdate)
       : await historyMessageHeaderService.create(header)
-    return { isNewPayload: !willUpdatePayloadID, isNewHeader: !willUpdateHeaderID }
+
+    return { isNewPayload: !payloadIdToUpdate, isNewHeader: !headerIdToUpdate }
   }
 
-  // Send one message
-  private async sendOneMessage(
+  /**
+   * Filters out entries from an object where the value is null or undefined.
+   */
+  private filterNonNullEntries(properties: any): any {
+    return Object.fromEntries(Object.entries(properties).filter(([_, v]) => v != null))
+  }
+
+  /**
+   * Processes message properties and returns a refined version.
+   */
+  private processProperties(properties: any) {
+    const props = this.filterNonNullEntries(properties)
+    if (props.correlationData && typeof props.correlationData === 'string') {
+      props.correlationData = Buffer.from(props.correlationData)
+    }
+    if (props.userProperties) {
+      props.userProperties = { ...props.userProperties } // Convert Vue object to JS object
+    }
+    return props
+  }
+
+  /**
+   * Publih a single message to the MQTT topic. Inserts the message to the history,
+   * processes the payload, and handles the publish process.
+   */
+  private async publishMessage(
     message: MessageModel,
     type: PayloadType,
     afterSendCallback?: (isNewPayload: boolean) => void,
-  ): Promise<void | boolean> {
-    const { id, topic, qos, payload, retain, properties } = message
+  ): Promise<void> {
+    const { topic, qos, payload, retain, properties } = message
 
-    let props: PushPropertiesModel | undefined = undefined
-    if (properties && Object.entries(properties).filter(([_, v]) => v !== null && v !== undefined).length > 0) {
-      const propRecords = Object.entries(properties).filter(([_, v]) => v !== null && v !== undefined)
-      props = Object.fromEntries(propRecords)
-      if (props.correlationData && typeof props.correlationData === 'string') {
-        props.correlationData = Buffer.from(props.correlationData)
-      }
-      if (props.userProperties) {
-        // For convert Vue object to normal JavaScript Object: https://github.com/vuejs/Discussion/issues/292
-        props.userProperties = { ...props.userProperties }
-      }
-    }
+    const props = properties ? this.processProperties(properties) : undefined
 
     const { isNewPayload } = await this.insertHistory(
       { payload, payloadType: type } as HistoryMessagePayloadModel,
       { qos, topic, retain } as HistoryMessageHeaderModel,
-    ) // insert message into local storage
+    )
 
-    const convertPayload = this.convertPayloadByScript(payload, 'publish')
-    const sendPayload = this.convertPayloadByType(convertPayload, type, 'publish')
+    let convertedPayload = ''
+    let finalPayload: string | Buffer | undefined = payload
+
+    /*
+     * Payload processing pipeline for publishing:
+     *      1. Raw Payload
+     *           ⬇️
+     *      2. [Function]: user-defined script processing
+     *           ⬇️
+     *      3. [Schema | Type]: decoding via custom schema (if defined) or default payload type conversion
+     *           ⬇️
+     *      4. Final Payload: ready for publishing
+     * Note:
+     * - Empty payloads are allowed to facilitate the clearing of retained messages.
+     */
+    if (payload) {
+      convertedPayload = this.convertPayloadByFunction(payload as string, 'publish', type)
+      finalPayload = this.handlePayloadBySchemaOrType(convertedPayload, type)
+      if (finalPayload === undefined) return
+    }
 
     this.client.publish!(
       topic,
-      sendPayload,
+      finalPayload,
       { qos, retain, properties: props as IClientPublishOptions['properties'] },
       async (error: Error) => {
         if (error) {
-          const errorMsg = error.toString()
-          this.$message.error(errorMsg)
-          this.stopTimedSend()
-          this.$log.error(`${this.record.name} message publish failed, ${error.stack}`)
-          return false
+          this.handleErrorOnPublish(error)
+          return
         }
-        const properties = this.record.mqttVersion === '5.0' ? props : undefined
-        const publishMessage: MessageModel = {
-          id,
-          out: true,
-          createAt: time.getNowDate(),
-          topic,
-          payload: convertPayload,
-          qos,
-          retain,
-          properties,
-        }
-        if (this.record.id) {
-          // Save message
-          const { messageService } = useServices()
-          await messageService.pushToConnection({ ...publishMessage }, this.record.id)
-
-          // Render messages
-          this.renderMessage(this.curConnectionId, publishMessage, 'publish')
-
-          // Log
-          const logPayload = JSON.stringify(publishMessage.payload)
-          let pubLog = `${this.record.name} sucessfully published message ${logPayload} to topic "${publishMessage.topic}"`
-          if (this.record.mqttVersion === '5.0') {
-            const logProperties = JSON.stringify(publishMessage.properties)
-            pubLog += ` with Properties: ${logProperties}`
-          }
-          this.$log.info(pubLog)
-        }
+        /*
+         * Store the message in the database and update the UI. We store the convertedPayload instead of the finalPayload for these reasons:
+         * 1. The finalPayload might be a Buffer, which isn't suitable for storage.
+         * 2. To retain a human-readable payload that reflects the original or the user-script processed data.
+         */
+        await this.handleSuccessfulPublish(message, convertedPayload)
       },
     )
-    afterSendCallback && afterSendCallback(isNewPayload)
+
+    afterSendCallback?.(isNewPayload)
+  }
+
+  /**
+   * Converts the given payload based on the specified option. Can return string, undefined or void.
+   */
+  private handlePayloadBySchemaOrType(convertedPayload: string, type: PayloadType): Buffer | string | undefined {
+    const payload =
+      this.scriptOption?.schema && ['all', 'publish'].includes(this.scriptOption.apply)
+        ? this.convertPayloadBySchema(convertedPayload, 'publish', type)
+        : this.convertPayloadByType(convertedPayload, type, 'publish')
+
+    return payload
+  }
+
+  /**
+   * Handles errors that occur during the message publish process.
+   */
+  private handleErrorOnPublish(error: Error) {
+    const errorMsg = error.toString()
+    this.notifyMsgWithCopilot(errorMsg)
+    this.stopTimedSend()
+    this.$log.error(
+      `Failed to publish message for ${this.record.name}@${this.record.host}. Error: ${errorMsg}. Stack trace: ${error.stack}`,
+    )
+  }
+
+  /**
+   * Handles the operations after a successful message publish.
+   */
+  private async handleSuccessfulPublish(message: MessageModel, publishedPayload: string | undefined) {
+    if (publishedPayload === undefined) {
+      return
+    }
+    const { id, topic, qos, retain } = message
+
+    const properties = this.record.mqttVersion === '5.0' ? this.processProperties(message.properties) : undefined
+    const publishMessage: MessageModel = {
+      id,
+      out: true,
+      createAt: time.getNowDate(),
+      topic,
+      payload: publishedPayload.toString(),
+      qos,
+      retain,
+      properties,
+    }
+
+    this.updateMeta(publishMessage, 'function', 'publish')
+    this.updateMeta(publishMessage, 'schema', 'publish')
+
+    if (this.record.id) {
+      if (!ignoreQoS0Message(qos)) {
+        this.saveMessage(this.record.id, [publishMessage])
+      }
+      this.renderMessage(this.curConnectionId, publishMessage, 'publish')
+      this.logSuccessfulPublish(publishMessage)
+    }
+  }
+
+  /**
+   * Logs details of a successfully published message.
+   */
+  private logSuccessfulPublish(publishMessage: MessageModel) {
+    const logPayload = jsonStringify(publishMessage.payload)
+    let pubLog = `Message with payload ${logPayload} was successfully published to topic "${publishMessage.topic}" by ${this.record.name}`
+    this.$log.info(pubLog)
   }
 
   // Show top connection client info
@@ -1407,7 +1818,7 @@ export default class ConnectionsDetail extends Vue {
     value: Buffer | string,
     type: PayloadType,
     way: 'publish' | 'received',
-  ): Buffer | string {
+  ): Buffer | string | undefined {
     const genPublishPayload = (publishType: PayloadType, publishValue: string) => {
       if (publishType === 'Base64') {
         return Buffer.from(publishValue, 'base64')
@@ -1416,7 +1827,34 @@ export default class ConnectionsDetail extends Vue {
         return Buffer.from(publishValue.replaceAll(' ', ''), 'hex')
       }
       if (publishType === 'JSON') {
-        validFormatJson(publishValue, this.$t('connections.publishMsg'))
+        try {
+          validFormatJson(publishValue.toString())
+        } catch (error) {
+          const err = error as Error
+          let errorMessage = `${this.$t('connections.publishMsg')} ${err.toString()}`
+          this.$message.error(errorMessage)
+          return undefined
+        }
+      }
+      if (publishType === 'CBOR') {
+        try {
+          return cbor.encodeOne(JSON.parse(publishValue))
+        } catch (error) {
+          const err = error as Error
+          let errorMessage = `${this.$t('connections.publishMsg')} ${err.toString()}`
+          this.$message.error(errorMessage)
+          return undefined
+        }
+      }
+      if (publishType === 'MsgPack') {
+        try {
+          return pack(JSON.parse(publishValue))
+        } catch (error) {
+          const err = error as Error
+          let errorMessage = `${this.$t('connections.publishMsg')} ${err.toString()}`
+          this.$message.error(errorMessage)
+          return undefined
+        }
       }
       return publishValue
     }
@@ -1428,25 +1866,44 @@ export default class ConnectionsDetail extends Vue {
         return receiveValue.toString('hex').replace(/(.{4})/g, '$1 ')
       }
       if (receiveType === 'JSON') {
-        const jsonValue = validFormatJson(receiveValue.toString(), this.$t('connections.receivedMsg'))
+        let jsonValue: string | undefined
+        try {
+          jsonValue = validFormatJson(receiveValue.toString())
+        } catch (error) {
+          throw error
+        }
         if (jsonValue) {
           return jsonValue
         }
       }
+      if (receiveType === 'CBOR') {
+        try {
+          return jsonStringify(cbor.decodeFirstSync(receiveValue), null, 2)
+        } catch (error) {
+          throw error
+        }
+      }
+      if (receiveType === 'MsgPack') {
+        try {
+          return jsonStringify(unpack(receiveValue), null, 2)
+        } catch (error) {
+          throw error
+        }
+      }
       return receiveValue.toString()
     }
-    if (way === 'publish' && typeof value === 'string') {
-      return genPublishPayload(type, value)
-    } else if (way === 'received' && typeof value !== 'string') {
-      return genReceivePayload(type, value)
+    if (way === 'publish') {
+      return genPublishPayload(type, value as string)
+    } else if (way === 'received') {
+      return genReceivePayload(type, value as Buffer)
     }
     return value
   }
 
-  // Use script to apply to payload
-  private convertPayloadByScript(payload: string, msgType: MessageType): string {
-    let convertPayload = payload
-    if (this.scriptOption?.content && ['all', msgType].includes(this.scriptOption.apply)) {
+  // Use function to apply to payload
+  private convertPayloadByFunction(payload: string, msgType: MessageType, type?: PayloadType): string {
+    let convertedPayload = payload
+    if (this.scriptOption?.function && ['all', msgType].includes(this.scriptOption.apply)) {
       if (this.sendFrequency || this.sendTimeId !== null) {
         msgType === 'publish' && (this.sendTimedMessageCount += 1)
       } else {
@@ -1454,15 +1911,114 @@ export default class ConnectionsDetail extends Vue {
       }
       const count = this.sendTimedMessageCount || undefined
       // Enable script function
-      convertPayload = sandbox.executeScript(
-        this.scriptOption.content.script,
-        this.receivedMsgType,
-        payload,
-        msgType,
-        count,
-      )
+      try {
+        convertedPayload = sandbox.executeScript(
+          this.scriptOption.function.script,
+          type || this.receivedMsgType,
+          payload,
+          msgType,
+          count,
+        )
+      } catch (error) {
+        this.$message.error(`Function Error: ${(error as Error).toString()}`)
+      }
     }
-    return convertPayload
+    return convertedPayload
+  }
+
+  private serializeWithSchema(
+    payload: string,
+    rawSchema: string,
+    schemaType: SchemaType,
+    protobufMessageName?: string,
+    format?: PayloadType,
+  ): string | Buffer {
+    switch (schemaType) {
+      case 'protobuf':
+        if (!protobufMessageName) {
+          this.$message.error(`Serialization: No protobuf message name found when serializing message.`)
+          return payload
+        }
+        return serializeProtobufToBuffer(payload as string, rawSchema, protobufMessageName, format)
+
+      case 'avro':
+        return serializeAvroToBuffer(payload as string, rawSchema, format)
+
+      default:
+        this.$message.error(`Serialization: Schema type is not defined or is not supported.`)
+        return payload
+    }
+  }
+
+  private deserializeWithSchema(
+    payload: Buffer,
+    rawSchema: string,
+    schemaType: SchemaType,
+    protobufMessageName?: string,
+    format?: PayloadType,
+  ): string | Buffer {
+    switch (schemaType) {
+      case 'protobuf':
+        if (!protobufMessageName) {
+          this.$message.error('Deserialization: No protobuf message name found when deserializing message.')
+          return payload
+        }
+
+        return deserializeBufferToProtobuf(payload, rawSchema, protobufMessageName, format)
+
+      case 'avro':
+        return deserializeBufferToAvro(payload, rawSchema, format)
+
+      default:
+        this.$message.error(`Deserialization: Schema type is not defined or is not supported.`)
+        return payload
+    }
+  }
+
+  // Use schema to apply to payload
+  private convertPayloadBySchema(
+    payload: Buffer | string,
+    msgType: MessageType,
+    to?: PayloadType,
+  ): string | Buffer | undefined {
+    // Do nothing if no schema is defined or script type does not apply to this message type
+    if (!this.scriptOption?.schema || !['all', msgType].includes(this.scriptOption.apply)) {
+      return payload
+    }
+
+    try {
+      // TODO: separate Function and Schema from `ScriptState`
+      if (!this.scriptOption.schema.type || this.scriptOption.schema.type === 'javascript') {
+        throw new Error('Conversion: Schema type is not defined or not supported.')
+      }
+
+      switch (msgType) {
+        case 'publish': {
+          return this.serializeWithSchema(
+            payload as string,
+            this.scriptOption.schema.script,
+            this.scriptOption.schema.type as SchemaType,
+            this.scriptOption.config?.name,
+            to,
+          )
+        }
+        case 'received': {
+          return this.deserializeWithSchema(
+            payload as Buffer,
+            this.scriptOption.schema.script,
+            this.scriptOption.schema.type as SchemaType,
+            this.scriptOption.config?.name,
+            to,
+          )
+        }
+
+        default:
+          return payload
+      }
+    } catch (error) {
+      this.$message.error((error as Error).toString())
+      return undefined
+    }
   }
 
   // Show export data dialog
@@ -1481,8 +2037,7 @@ export default class ConnectionsDetail extends Vue {
   }
 
   // Auto subscribe system topic and show dialog
-  private handleSubSystemTopic() {
-    this.showBytes = true
+  private async handleSubSystemTopic() {
     const sysTopic: SubscriptionModel = {
       topic: '$SYS/#',
       id: getSubscriptionId(),
@@ -1490,7 +2045,8 @@ export default class ConnectionsDetail extends Vue {
       createAt: time.getNowDate(),
       disabled: false,
     }
-    this.subListRef.subscribe(sysTopic, true)
+    await this.subListRef.subscribe(sysTopic, true)
+    this.$router.push({ name: 'TrafficMonitor', query: { connectionId: this.record.id } })
   }
 
   // Re-subscribe topic
@@ -1519,7 +2075,7 @@ export default class ConnectionsDetail extends Vue {
       if (client.listenerCount) {
         msgEventCount = client.listenerCount('message')
       }
-      if (client.connected && client.on && msgEventCount === 0) {
+      if (client.connected && msgEventCount === 0) {
         this.onMessageArrived(client, connectionID)
       }
       this.changeActiveConnection({
@@ -1540,6 +2096,72 @@ export default class ConnectionsDetail extends Vue {
     })
   }
 
+  /**
+   * Notifies the user with a message and provides an option to ask Copilot for assistance.
+   *
+   * @param {string} msgTitle - The title of the message.
+   * @param {string} promptInfo - Additional information to prompt the user.
+   * @param {function} callback - The callback function to be executed after asking Copilot.
+   * @param {string} type - The type of the message ('error' or 'warning') defualt error.
+   */
+  private notifyMsgWithCopilot(
+    msgTitle: string,
+    promptInfo?: string,
+    callback?: () => void,
+    type: 'error' | 'warning' = 'error',
+  ) {
+    const askCopilotButton = `
+      <button id="notify-copilot-button">Ask Copilot</button>
+    `
+    const message = this.enableCopilot ? askCopilotButton : ''
+    const notify = this.$notify({
+      title: msgTitle,
+      dangerouslyUseHTMLString: true,
+      message,
+      type,
+      duration: 4000,
+      offset: 30,
+    })
+
+    this.$nextTick(() => {
+      const button = document.getElementById('notify-copilot-button')
+      if (button) {
+        button.addEventListener('click', () => {
+          const sendMsg = promptInfo ? `${promptInfo}\n${msgTitle}` : msgTitle
+          this.askCopilot(
+            `${this.$tc('common.promptError')}\n\`\`\`${sendMsg}\`\`\`\n${this.$tc('common.myConnectionInfo')}`,
+          )
+          notify.close()
+          callback?.()
+        })
+      }
+    })
+  }
+
+  /**
+   * Asks Copilot a question and shows the Copilot component.
+   * @param askMsg The question to ask Copilot.
+   */
+  private askCopilot(askMsg: string) {
+    const copilotRef = this.toggleShowCopilot()
+    copilotRef.sendMessage(askMsg)
+  }
+
+  private toggleShowCopilot(show: boolean = true) {
+    const copilotRef: Copilot = this.$refs.copilot as Copilot
+    copilotRef.showCopilot = show
+    return copilotRef
+  }
+
+  private handleInsertedCode() {
+    this.$message.success(this.$tc('common.insertCodeSuccess'))
+    this.toggleShowCopilot(false)
+  }
+
+  private handleConnectionSelect(connectionId: string) {
+    this.$router.push({ path: `/recent_connections/${connectionId}` })
+  }
+
   private created() {
     this.getConnectionValue(this.curConnectionId)
     ipcRenderer.on('searchContent', () => {
@@ -1549,16 +2171,19 @@ export default class ConnectionsDetail extends Vue {
 
   private mounted() {
     this.setMessageListHeight()
-    window.onresize = () => {
+    window.addEventListener('resize', () => {
       this.setMessageListHeight()
-    }
+    })
   }
 
   private beforeDestroy() {
     ipcRenderer.removeAllListeners('searchContent')
     this.removeClinetsMessageListener()
     this.stopTimedSend()
-    window.onresize = null
+    this.forceStopToReconnect()
+    window.removeEventListener('resize', () => {
+      this.setMessageListHeight()
+    })
   }
 }
 </script>
@@ -1578,27 +2203,36 @@ export default class ConnectionsDetail extends Vue {
       }
       .connection-head {
         display: flex;
-        .title-name {
-          display: inline-block;
+        align-items: center;
+        h2.title-name {
           max-width: 200px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          margin-right: 12px;
+          &.offline {
+            color: var(--color-text-light);
+          }
         }
-        .offline {
-          color: var(--color-text-light);
+        .connection-select {
+          margin-right: 12px;
         }
-        a.collapse-btn {
-          font-size: 18px;
-          float: right;
-          margin-left: 12px;
-          margin-top: -1px;
+        .icon-show-connections,
+        .icon-collapse {
+          font-size: 20px;
         }
-        @include collapse-btn-transform(90deg, -90deg);
+        a.show-connections-button {
+          color: var(--color-text-title);
+          margin-right: 12px;
+        }
+        .icon-collapse {
+          font-weight: bold;
+        }
         .connection-message-count {
-          top: 3px;
-          left: 10px;
+          margin-left: 12px;
+          display: flex;
         }
+        @include collapse-btn-transform(0deg, 180deg);
       }
       .connection-tail {
         i {
@@ -1609,7 +2243,7 @@ export default class ConnectionsDetail extends Vue {
         .remove-script-btn,
         .disconnect-btn,
         .stop-interval-btn {
-          margin-right: 12px;
+          margin-right: 16px;
           i {
             color: var(--color-minor-red);
           }
@@ -1617,8 +2251,9 @@ export default class ConnectionsDetail extends Vue {
         .connect-loading,
         .edit-btn,
         .connect-btn,
+        .copilot-btn,
         .new-window-btn {
-          margin-right: 12px;
+          margin-right: 16px;
         }
         .edit-btn {
           &.disabled {
@@ -1687,10 +2322,6 @@ export default class ConnectionsDetail extends Vue {
         right: 0;
         z-index: 1;
         transition: all 0.4s;
-        .el-input .el-input__inner {
-          border: none;
-          color: var(--color-main-green);
-        }
         .subs-title {
           color: var(--color-text-title);
           position: absolute;
@@ -1701,16 +2332,14 @@ export default class ConnectionsDetail extends Vue {
           left: 3px;
           display: inline-block;
           transform: rotate(180deg);
-          .icon-zhedie {
-            display: inline-block;
-            transform: rotate(180deg);
-          }
         }
         .message-type {
           @include flex-space-between;
           .received-type-select {
-            width: 95px;
-            margin-left: 245px;
+            width: 88px;
+            .el-input__inner {
+              padding: 4px 10px;
+            }
           }
           .icon-tip {
             position: absolute;
@@ -1728,33 +2357,12 @@ export default class ConnectionsDetail extends Vue {
       bottom: 0;
       left: 0;
       right: 0;
-      z-index: 4;
+      z-index: 3;
     }
   }
 }
-.connection-oper-item.el-dropdown-menu {
-  .iconfont,
-  [class^='el-icon-'] {
-    font-size: 18px;
-    font-weight: 400;
-  }
-  .el-dropdown-menu__item {
-    display: flex;
-    align-items: center;
-    .iconfont,
-    [class^='el-icon-'] {
-      margin-right: 8px;
-    }
-  }
-  li.delete-item {
-    display: block;
-    color: var(--color-minor-red);
-    &:hover {
-      color: var(--color-minor-red);
-      background: var(--color-light-red);
-    }
-  }
-}
+
+@include el-dropdown-menu-common;
 
 .message-popover {
   .popover-item {
@@ -1770,5 +2378,12 @@ export default class ConnectionsDetail extends Vue {
       margin-right: 8px;
     }
   }
+}
+.el-select-group__title {
+  padding-right: 20px;
+  color: var(--color-text-light) !important;
+  font-size: 13px;
+  height: 34px;
+  border-bottom: 1px solid var(--color-border-default);
 }
 </style>

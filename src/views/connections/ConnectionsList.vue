@@ -10,7 +10,7 @@
           @command="handleCommand"
         >
           <a href="javascript:;" class="new-button">
-            <i class="iconfont icon-a-createnew"></i>
+            <i class="iconfont icon-create-new"></i>
           </a>
           <el-dropdown-menu class="connection-oper-item" slot="dropdown">
             <el-dropdown-item command="newConnection">
@@ -21,6 +21,24 @@
             </el-dropdown-item>
           </el-dropdown-menu>
         </el-dropdown>
+        <el-tooltip
+          placement="bottom"
+          :effect="theme !== 'light' ? 'light' : 'dark'"
+          :open-delay="500"
+          :content="$t('connections.hideConnections')"
+        >
+          <a
+            href="javascript:;"
+            class="new-button"
+            @click="
+              toggleShowConnectionList({
+                showConnectionList: false,
+              })
+            "
+          >
+            <i class="iconfont icon-hide-connections"></i>
+          </a>
+        </el-tooltip>
       </div>
     </div>
     <div class="connections-list">
@@ -53,7 +71,7 @@
               v-else-if="!data.isCollection"
               class="connection-item"
               @click="handleSelectConnection(data)"
-              @contextmenu="handleContextMenu(data, $event)"
+              @contextmenu.prevent="handleContextMenu(data, $event)"
             >
               <div class="item-left">
                 <div
@@ -96,7 +114,7 @@
               v-else
               class="custom-tree-node-collection"
               @click="handleSelectCollection(data)"
-              @contextmenu="handleCollectionContextMenu($event, data)"
+              @contextmenu.prevent="handleCollectionContextMenu($event, data)"
             >
               <el-tooltip
                 :effect="theme !== 'light' ? 'light' : 'dark'"
@@ -120,10 +138,10 @@
       </template>
       <contextmenu :visible.sync="showContextmenu" v-bind="contextmenuConfig">
         <a href="javascript:;" class="context-menu__item" @click="handleNewWindow">
-          <i class="iconfont icon-a-newwindow"></i>{{ $t('common.newWindow') }}
+          <i class="iconfont icon-new-window"></i>{{ $t('common.newWindow') }}
         </a>
         <a href="javascript:;" class="context-menu__item" @click="handleDuplicate">
-          <i class="el-icon-document-copy"></i>{{ $t('common.duplicate') }}
+          <i class="iconfont icon-copy"></i>{{ $t('common.duplicate') }}
         </a>
         <a href="javascript:;" :class="['context-menu__item', { disabled: getDisabledStatus() }]" @click="handleEdit">
           <i class="iconfont icon-edit"></i>{{ $t('common.edit') }}
@@ -169,6 +187,9 @@ import getContextmenuPosition from '@/utils/getContextmenuPosition'
 export default class ConnectionsList extends Vue {
   @Action('UNREAD_MESSAGE_COUNT_INCREMENT') private unreadMessageIncrement!: (payload: UnreadMessage) => void
   @Action('SET_CONNECTIONS_TREE') private setConnectionsTree!: (payload: ConnectionTreeState) => void
+  @Action('TOGGLE_SHOW_CONNECTION_LIST') private toggleShowConnectionList!: (payload: {
+    showConnectionList: boolean
+  }) => void
 
   @Getter('activeConnection') private activeConnection!: ActiveConnection
   @Getter('unreadMessageCount') private unreadMessageCount: UnreadMessage | undefined
@@ -211,6 +232,7 @@ export default class ConnectionsList extends Vue {
         treeRef?.setCurrentKey(id)
         this.connectionId = id
         this.expandTreeNodeAncestor(id)
+        this.initUnreadMessageCount(id)
       }
     })
   }
@@ -569,7 +591,7 @@ export default class ConnectionsList extends Vue {
           createAt: time.getNowDate(),
           updateAt: time.getNowDate(),
         })
-        this.$log.info(`${res.name} has been duplicated as ${newConnection?.name}`)
+        this.$log.info(`Duplicated ${res.name} as ${newConnection?.name}`)
         this.$message.success(
           this.$t('connections.duplicated', {
             name: newConnection?.name,
@@ -685,11 +707,11 @@ export default class ConnectionsList extends Vue {
           const { collectionService } = useServices()
           await collectionService.delete(selectedCollection.id)
           this.$message.success(this.$tc('common.deleteSuccess'))
-          this.$log.info(`${name} collection was successfully deleted`)
+          this.$log.info(`Group ${name} was successfully deleted`)
           this.$emit('reload')
         })
         .catch((error) => {
-          // ignore(error)
+          this.$log.error(error.toString())
         })
     }
     this.showCollectionsContextmenu = false
@@ -717,6 +739,7 @@ export default class ConnectionsList extends Vue {
 
   private mounted() {
     this.loadData(true)
+    this.initUnreadMessageCount(this.connectionId)
   }
 }
 </script>
@@ -733,13 +756,17 @@ export default class ConnectionsList extends Vue {
     height: 59px;
     -webkit-app-region: drag;
     .new-dropdown {
-      margin-right: 16px;
       &.is-new-window {
         display: none;
       }
-      .new-button {
-        .icon-a-createnew {
-          font-size: 20px;
+    }
+    .new-button {
+      margin-right: 16px;
+      .icon-create-new,
+      .icon-hide-connections {
+        font-size: 20px;
+        color: var(--color-text-title);
+        &:hover {
           color: var(--color-text-title);
         }
       }
@@ -747,9 +774,17 @@ export default class ConnectionsList extends Vue {
     .connection-titlebar {
       padding: 16px;
     }
+    .connection-tailbar {
+      display: flex;
+      align-items: center;
+    }
   }
   .connections-list {
     height: calc(100% - 59px);
+    overflow-y: hidden;
+    &:hover {
+      overflow-y: overlay;
+    }
     .connections-list-skeleton {
       margin: 0 16px;
     }
@@ -763,6 +798,9 @@ export default class ConnectionsList extends Vue {
         background-color: var(--color-bg-item);
       }
       .el-tree-node__content {
+        .el-tree-node__expand-icon {
+          padding: 4px;
+        }
         height: 100%;
         margin: 0 8px;
         border-radius: 8px;
@@ -827,6 +865,8 @@ export default class ConnectionsList extends Vue {
               color: var(--color-text-active);
               font-size: $font-size--tips;
               text-align: center;
+              position: relative;
+              top: -2px;
             }
             .connection-status {
               display: inline-block;

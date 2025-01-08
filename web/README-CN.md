@@ -1,13 +1,13 @@
 <img src="../assets/mqttx-logo.png" width="480" alt="MQTTX Logo" />
 
-# MQTT X Web
+# MQTTX Web
 
 [![GitHub Release](https://img.shields.io/github/release/emqx/mqttx?color=brightgreen)](https://github.com/emqx/mqttx/releases)
 ![build packages](https://github.com/emqx/MQTTX/workflows/build%20packages/badge.svg)
 [![Total Downloads](https://img.shields.io/github/downloads/emqx/mqttx/total.svg)](https://github.com/emqx/mqttx/releases)
 [![Docker](https://img.shields.io/docker/pulls/emqx/mqttx-web)](https://hub.docker.com/r/emqx/mqttx-web)
 [![Slack](https://img.shields.io/badge/Slack-EMQX-39AE85?logo=slack)](https://slack-invite.emqx.io/) [![Discord](https://img.shields.io/discord/931086341838622751?label=Discord&logo=discord)](https://discord.gg/xYGf3fQnES)
-[![Community](https://img.shields.io/badge/Community-MQTT%20X-yellow?logo=github)](https://github.com/emqx/MQTTX/discussions)
+[![Community](https://img.shields.io/badge/Community-MQTTX-yellow?logo=github)](https://github.com/emqx/MQTTX/discussions)
 [![YouTube](https://img.shields.io/badge/Subscribe-EMQ-FF0000?logo=youtube)](https://www.youtube.com/channel/UC5FjR77ErAxvZENEWzQaO5Q)
 [![Twitter](https://img.shields.io/badge/Follow-EMQ-1DA1F2?logo=twitter)](https://twitter.com/EMQTech)
 
@@ -15,9 +15,9 @@
 
 ---
 
-[MQTT X Web](https://mqttx.app)是一款开源的 MQTT 5.0 浏览器客户端，也是一个在线 MQTT WebSocket 客户端工具。使用 WebSocket 在浏览器中连接到 MQTT，帮助开发者更快地开发和调试 MQTT 服务和应用程序，而不必在本地下载和安装 MQTT X。
+[MQTTX Web](https://mqttx.app)是一款开源的 MQTT 5.0 浏览器客户端，也是一个在线 MQTT WebSocket 客户端工具。使用 WebSocket 在浏览器中连接到 MQTT，帮助开发者更快地开发和调试 MQTT 服务和应用程序，而不必在本地下载和安装 MQTTX。
 
-> [MQTT](http://mqtt.org/faq) 全称为 Message Queuing Telemetry Transport（消息队列遥测传输）是一种基于 发布/订阅 范式的“轻量级”消息协议，旨在用于受限设备和低带宽，高延迟或不可靠的网络，由 IBM 发布。
+> [MQTT](https://www.emqx.com/zh/blog/the-easiest-guide-to-getting-started-with-mqtt) 全称为 Message Queuing Telemetry Transport（消息队列遥测传输）是一种基于 发布/订阅 范式的“轻量级”消息协议，旨在用于受限设备和低带宽，高延迟或不可靠的网络，由 IBM 发布。
 
 ## 功能预览
 
@@ -25,11 +25,11 @@
 
 ## 文档
 
-关于介绍和使用，请参考 [MQTT X Web 文档](https://mqttx.app/zh/docs/web).
+关于介绍和使用，请参考 [MQTTX Web 文档](https://mqttx.app/zh/docs/web).
 
 ## 使用
 
-访问 MQTT WebSocket 客户端工具 (MQTT X Web): [http://www.emqx.io/online-mqtt-client](http://www.emqx.io/online-mqtt-client)
+访问 MQTT WebSocket 客户端工具 (MQTTX Web): <https://mqttx.app/web-client>
 
 ## Docker 部署
 
@@ -39,9 +39,13 @@ docker pull emqx/mqttx-web:latest
 docker run -d --name mqttx-web -p 80:80 emqx/mqttx-web:latest
 ```
 
+## 手动编译部署
+
+如果你需要进行某些个性化设置，例如改变默认的连接路径、部署路径等，你可以编辑 .env 配置文件并手动编译来实现这些修改。如果你想知道如何编译项目和打包 docker 镜像，你可以参考我们的[开发部分](#开发)。
+
 ## 与 EMQX 更好的合作
 
-MQTT X 为连接测试 EMQX 等 MQTT 消息服务器而生，一键式的连接方式和简洁的图形界面可以帮助您快速连接到 EMQX 或 EMQX Cloud 调试并探索其功能特性。
+MQTTX 为连接测试 EMQX 等 MQTT 消息服务器而生，一键式的连接方式和简洁的图形界面可以帮助您快速连接到 EMQX 或 EMQX Cloud 调试并探索其功能特性。
 
 [注册 EMQX Cloud 可以享受 14 天免费试用](https://www.emqx.com/zh/try?product=cloud)
 
@@ -77,6 +81,15 @@ yarn run build
 
 # 编译并启动一个本地 HTTP 服务器以进行测试
 yarn run start
+
+# 编译和压缩以构建生产版本，用于 Docker 容器化
+yarn run build:docker
+
+# 构建 Docker 镜像
+docker build -t mqttx-web .
+
+# 运行 Docker 镜像
+docker run -p 80:80 mqttx-web
 ```
 
 ## 贡献

@@ -13,9 +13,6 @@
           <el-button class="btn new-subs-btn" icon="el-icon-plus" plain type="outline" size="mini" @click="openDialog">
             {{ $t('connections.newSubscription') }}
           </el-button>
-          <a class="hide-btn" href="javascript:;" @click="hideSubsList">
-            <i class="iconfont icon-collapse"></i>
-          </a>
         </div>
         <div
           v-for="(sub, index) in subsList"
@@ -25,7 +22,7 @@
             background: `${sub.color}10`,
           }"
           @click="handleClickTopic(sub, index)"
-          @contextmenu="handleContextMenu(sub, $event)"
+          @contextmenu.prevent="handleContextMenu(sub, $event)"
         >
           <div
             :style="{
@@ -157,7 +154,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label-width="180px" label="No Local flag" prop="nl">
+                <el-form-item label-width="180px" :label="$t('connections.noLocal')" prop="nl">
                   <el-radio-group v-model="subRecord.nl">
                     <el-radio :label="true">true</el-radio>
                     <el-radio :label="false">false</el-radio>
@@ -165,7 +162,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label-width="180px" label="Retain as Published flag" prop="rap">
+                <el-form-item label-width="180px" :label="$t('connections.retainAsPublished')" prop="rap">
                   <el-radio-group v-model="subRecord.rap">
                     <el-radio :label="true">true</el-radio>
                     <el-radio :label="false">false</el-radio>
@@ -173,7 +170,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="24">
-                <el-form-item label-width="180px" label="Retain Handling" prop="rh">
+                <el-form-item label-width="180px" :label="$t('connections.retainHandling')" prop="rh">
                   <el-select v-model="subRecord.rh" size="small">
                     <el-option
                       v-for="retainOps in retainHandling"
@@ -206,13 +203,7 @@ import Contextmenu from '@/components/Contextmenu.vue'
 import { updateConnection } from '@/utils/api/connection'
 import time from '@/utils/time'
 import { getSubscriptionId } from '@/utils/idGenerator'
-
-enum SubscribeErrorReason {
-  normal,
-  qosSubFailed, // qos is abnormal
-  qosSubSysFailed, // qos is abnormal becauseof $SYS subscribe
-  emptySubFailed, // subscription returns empty array
-}
+import getErrorReason from '@/utils/mqttErrorReason'
 
 @Component({
   components: {
@@ -227,7 +218,6 @@ export default class SubscriptionsList extends Vue {
   @Prop({ required: true }) public record!: ConnectionModel
   @Prop({ type: String, default: '60px' }) public top!: string
 
-  @Action('SHOW_SUBSCRIPTIONS') private changeShowSubscriptions!: (payload: SubscriptionsVisible) => void
   @Action('CHANGE_SUBSCRIPTIONS') private changeSubs!: (payload: Subscriptions) => void
 
   @Getter('currentTheme') private theme!: Theme
@@ -314,11 +304,6 @@ export default class SubscriptionsList extends Vue {
     return this.predefineColors[$index]
   }
 
-  private hideSubsList() {
-    this.$emit('update:subsVisible', false)
-    this.changeShowSubscriptions({ showSubscriptions: false })
-  }
-
   private openDialog() {
     this.showDialog = true
     this.isEdit = false
@@ -344,28 +329,6 @@ export default class SubscriptionsList extends Vue {
         this.updateSub()
       }
     })
-  }
-
-  /**
-   * Get the error reason message corresponding to the enumeration.
-   * Check that errorReason not equal `SubscribeErrorReason.normal` before using.
-   * @return Return the message of failure subscribe
-   * @param errorReason - Type:enum, The reason cause the failed subscription
-   */
-  private getErrorReasonMsg(errorReason: SubscribeErrorReason): VueI18n.TranslateResult {
-    if (errorReason === SubscribeErrorReason.normal) return ''
-    switch (errorReason) {
-      case errorReason & SubscribeErrorReason.qosSubFailed: {
-        return this.$t('connections.qosSubFailed')
-      }
-      case errorReason & SubscribeErrorReason.qosSubSysFailed: {
-        return this.$t('connections.qosSubSysFailed')
-      }
-      case errorReason & SubscribeErrorReason.emptySubFailed: {
-        return this.$t('connections.emptySubFailed')
-      }
-    }
-    return this.$t('connections.unknowSubFailed')
   }
 
   public async resubscribe() {
@@ -401,6 +364,17 @@ export default class SubscriptionsList extends Vue {
     }
   }
 
+  private handleSubError(topic: string, qos: number) {
+    const isAclSubFailed = (qos: number) => {
+      return [128, 135].includes(qos)
+    }
+
+    const aclSubFailed = isAclSubFailed(qos)
+    const errorReasonMsg = aclSubFailed ? `. ${this.$t('connections.aclSubFailed')}` : ''
+    const errorReason = getErrorReason(this.record.mqttVersion, qos)
+    this.$message.error(`${this.$t('connections.subFailed', [topic, errorReason, qos]) + errorReasonMsg}`)
+  }
+
   public async subscribe(
     { topic, alias, qos, nl, rap, rh, subscriptionIdentifier, disabled }: SubscriptionModel,
     isAuto?: boolean,
@@ -416,9 +390,10 @@ export default class SubscriptionsList extends Vue {
       this.subRecord.disabled = disabled
       this.subRecord.color = getRandomColor()
     }
-    let isFinshed = false
+    let isFinished = false
+
     if (this.client.subscribe) {
-      const topicsArr = this.multiTopics ? topic.split(',') : topic
+      const topicsArr = this.multiTopics ? [...new Set(topic.split(','))].filter(Boolean) : topic
       const aliasArr = this.multiTopics ? alias?.split(',') : alias
       let properties: { subscriptionIdentifier: number } | undefined = undefined
       if (this.record.mqttVersion === '5.0' && subscriptionIdentifier) {
@@ -430,19 +405,21 @@ export default class SubscriptionsList extends Vue {
         this.subLoading = false
         if (error) {
           this.$message.error(error)
+          isFinished = true
           return false
         }
-        let errorReason = SubscribeErrorReason.normal
-        if (!granted || (Array.isArray(granted) && granted.length < 1)) {
-        } else if (![0, 1, 2].includes(granted[0].qos) && topic.match(/^(\$SYS)/i)) {
-          errorReason = SubscribeErrorReason.qosSubSysFailed
-        } else if (![0, 1, 2].includes(granted[0].qos)) {
-          errorReason = SubscribeErrorReason.qosSubFailed
-        }
-        if (errorReason !== SubscribeErrorReason.normal) {
-          const errorReasonMsg: VueI18n.TranslateResult = this.getErrorReasonMsg(errorReason)
-          const errorMsg: string = `${this.$t('connections.subFailed')} ${errorReasonMsg}`
-          this.$message.error(errorMsg)
+        const successSubscriptions: string[] = []
+        granted.forEach((grant) => {
+          if ([0, 1, 2].includes(grant.qos)) {
+            successSubscriptions.push(grant.topic)
+          } else {
+            setTimeout(() => {
+              this.handleSubError(grant.topic, grant.qos)
+            }, 0)
+          }
+        })
+        if (!successSubscriptions.length) {
+          isFinished = true
           return false
         }
         if (enable) {
@@ -452,7 +429,9 @@ export default class SubscriptionsList extends Vue {
             this.saveTopicToSubList(topic, qos)
           } else {
             topicsArr.forEach((topic, index) => {
-              this.saveTopicToSubList(topic, qos, index, aliasArr as string[])
+              if (successSubscriptions.includes(topic)) {
+                this.saveTopicToSubList(topic, qos, index, aliasArr as string[])
+              }
             })
           }
         }
@@ -462,7 +441,7 @@ export default class SubscriptionsList extends Vue {
           this.changeSubs({ id: this.connectionId, subscriptions: this.subsList })
           this.showDialog = false
         }
-        isFinshed = true
+        isFinished = true
       })
     }
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -470,10 +449,10 @@ export default class SubscriptionsList extends Vue {
     // TODO: maybe we should replace mqtt.js to mqtt-async.js
     await new Promise(async (resolve) => {
       // long pool query base on sleep
-      while (!isFinshed) {
+      while (!isFinished) {
         await sleep(100)
       }
-      resolve(isFinshed)
+      resolve(isFinished)
     })
   }
 
@@ -674,11 +653,7 @@ export default class SubscriptionsList extends Vue {
     text-align: center;
     position: relative;
     padding: 16px 16px 0 16px;
-    text-align: initial;
-    .new-subs-btn {
-      border-width: 1px;
-      border-style: dashed;
-    }
+    text-align: center;
     .hide-btn {
       font-size: 20px;
       position: absolute;

@@ -49,9 +49,9 @@ declare global {
     validator: () => void
   }
 
-  interface ChartDataModel {
+  interface MetricsModel {
     label: string
-    recevied: number
+    received: number
     sent: number
   }
 
@@ -101,10 +101,6 @@ declare global {
     unreadMessageCount?: 0
   }
 
-  interface SubscriptionsVisible {
-    showSubscriptions: boolean
-  }
-
   type PluginFunction<T> = (Vue: any, options?: T) => void
 
   interface PluginObject<T> {
@@ -119,7 +115,6 @@ declare global {
     autoResub: boolean
     autoScroll: boolean
     autoScrollInterval: number
-    showSubscriptions: boolean
     multiTopics: boolean
     maxReconnectTimes: number
     showClientInfo: {
@@ -246,6 +241,7 @@ declare global {
 
   interface SSLPath {
     rejectUnauthorized?: boolean
+    ALPNProtocols?: string | null
     ca: string
     cert: string
     key: string

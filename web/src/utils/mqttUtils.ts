@@ -40,6 +40,7 @@ const getClientOptions = (record: ConnectionModel): IClientOptions => {
     reconnectPeriod, // reconnectPeriod = 0 disabled automatic reconnection in the client
     will,
     rejectUnauthorized,
+    ALPNProtocols,
     clientIdWithTime,
   } = record
   const protocolVersion = mqttVersionDict[mqttVersion]
@@ -76,6 +77,9 @@ const getClientOptions = (record: ConnectionModel): IClientOptions => {
   // SSL
   if (ssl) {
     options.rejectUnauthorized = rejectUnauthorized === undefined ? true : rejectUnauthorized
+    if (ALPNProtocols) {
+      options.ALPNProtocols = ALPNProtocols.replace(/[\[\] ]/g, '').split(',')
+    }
     if (certType === 'self') {
       const sslRes: SSLContent | undefined = getSSLFile({
         ca: record.ca,
@@ -124,7 +128,13 @@ const getUrl = (record: ConnectionModel): string => {
 export const createClient = (record: ConnectionModel): { curConnectClient: MqttClient; connectUrl: string } => {
   const options: IClientOptions = getClientOptions(record)
   const url = getUrl(record)
-  const curConnectClient: MqttClient = mqtt.connect(url, options)
+  // Map options.properties.topicAliasMaximum to options.topicAliasMaximum, as that is where MQTT.js looks for it.
+  // TODO: remove after bug fixed in MQTT.js v5.
+  const optionsTempWorkAround = Object.assign(
+    { topicAliasMaximum: options.properties ? options.properties.topicAliasMaximum : undefined },
+    options,
+  )
+  const curConnectClient: MqttClient = mqtt.connect(url, optionsTempWorkAround)
 
   return { curConnectClient, connectUrl: url }
 }
@@ -145,19 +155,20 @@ export const getDefaultRecord = (): ConnectionModel => {
     updateAt: time.getNowDate(),
     name: '',
     clean: true,
-    protocol: 'ws',
-    host: 'broker.emqx.io',
+    protocol: process.env.VUE_APP_IS_ONLINE_ENV === 'true' ? 'wss' : 'ws',
+    host: process.env.VUE_APP_DEFAULT_HOST ?? 'broker.emqx.io',
     keepalive: 60,
     connectTimeout: 10,
-    reconnect: false,
+    reconnect: true,
     reconnectPeriod: 4000,
     username: '',
     password: '',
     path: '/mqtt',
-    port: 8083,
+    port: process.env.VUE_APP_IS_ONLINE_ENV === 'true' ? 8084 : 8083,
     ssl: false,
     certType: '',
     rejectUnauthorized: true,
+    ALPNProtocols: '',
     ca: '',
     cert: '',
     key: '',

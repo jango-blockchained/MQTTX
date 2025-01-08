@@ -29,6 +29,11 @@ export default {
     en: 'Save',
     ja: '保存',
   },
+  saveOnly: {
+    zh: '仅保存',
+    en: 'Save Only',
+    ja: '保存のみ',
+  },
   reset: {
     zh: '重置',
     en: 'Reset',
@@ -78,6 +83,11 @@ export default {
     zh: '删除失败',
     en: 'Delete Failed',
     ja: '削除に失敗しました',
+  },
+  saveSuccess: {
+    zh: '保存成功',
+    en: 'Save Success',
+    ja: '保存に成功しました',
   },
   warning: {
     zh: '提示',
@@ -133,6 +143,16 @@ export default {
     zh: '复制失败',
     en: 'Copy Failed',
     ja: 'コピーが失敗しました',
+  },
+  importSuccess: {
+    zh: '导入成功',
+    en: 'Imported successfully',
+    ja: 'インポートが成功しました',
+  },
+  exportSuccess: {
+    zh: '导出成功',
+    en: 'exported successfully',
+    ja: 'のエクスポートが成功しました',
   },
   version: {
     zh: '版本：',

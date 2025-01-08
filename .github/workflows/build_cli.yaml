@@ -10,12 +10,12 @@ on:
 
 jobs:
   build_packages:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
         with:
-          node-version: 16.14
+          node-version: '18.17'
 
       - name: build
         run: |
@@ -24,29 +24,29 @@ jobs:
           npm install -g pkg
           pkg package.json
 
-      - uses: actions/upload-artifact@v2
-        with:
-          name: cli
-          path: cli/release
+      # - uses: actions/upload-artifact@v3
+      #   with:
+      #     name: cli
+      #     path: cli/release
 
-      - name: upload release asset
-        if: github.event_name == 'release'
-        run: |
-          cd cli/release
-          for var in $(ls); do
-              $GITHUB_WORKSPACE/.github/workflows/upload_github_release_asset.sh \
-                  owner=${{ github.repository_owner }} \
-                  repo=mqttx \
-                  tag=$(echo ${{ github.ref }} | sed -r  "s ^refs/heads/|^refs/tags/(.*) \1 g") \
-                  filename=$var \
-                  github_api_token=$(echo ${{ secrets.GITHUB_TOKEN }})
-          done
+      # - name: upload release asset
+      #   if: github.event_name == 'release'
+      #   run: |
+      #     cd cli/release
+      #     for var in $(ls); do
+      #         $GITHUB_WORKSPACE/.github/workflows/upload_github_release_asset.sh \
+      #             owner=${{ github.repository_owner }} \
+      #             repo=mqttx \
+      #             tag=$(echo ${{ github.ref }} | sed -r  "s ^refs/heads/|^refs/tags/(.*) \1 g") \
+      #             filename=$var \
+      #             github_api_token=$(echo ${{ secrets.GITHUB_TOKEN }})
+      #     done
 
   publish_docker:
     if: github.event_name == 'release'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: docker meta
         id: meta
         uses: docker/metadata-action@v4
@@ -79,12 +79,12 @@ jobs:
 
   publish_npm:
     if: github.event_name == 'release' && !github.event.release.prerelease
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
-          node-version: 16.14
+          node-version: '18.17'
           registry-url: 'https://registry.npmjs.org'
       - name: build
         run: |

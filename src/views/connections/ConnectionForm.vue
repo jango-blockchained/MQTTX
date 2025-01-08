@@ -1,6 +1,16 @@
 <template>
-  <div class="connection-form right-content card-form">
-    <div class="right-topbar topbar">
+  <div
+    class="connection-form right-content card-form"
+    :style="{
+      marginLeft: leftValue,
+    }"
+  >
+    <div
+      class="right-topbar topbar"
+      :style="{
+        left: leftValue,
+      }"
+    >
       <div class="header">
         <a href="javascript:;" @click="handleBack($route.params.id)">
           <i class="el-icon-arrow-left"></i>{{ $t('common.back') }}
@@ -10,9 +20,19 @@
         <h2>{{ oper === 'create' ? $t('common.new') : $t('common.edit') }}</h2>
       </div>
       <div class="tail">
-        <a href="javascript:;" @click="save">
+        <a href="javascript:;" @click="handleSave('connect')" class="connect-btn">
           {{ $t('connections.connectBtn') }}
         </a>
+        <el-dropdown trigger="click" @command="handleActionCommand">
+          <a href="javascript:;">
+            <i class="el-icon-arrow-down"></i>
+          </a>
+          <el-dropdown-menu class="connection-oper-item" slot="dropdown">
+            <el-dropdown-item command="save">
+              <i class="iconfont icon-save"></i>{{ $t('common.saveOnly') }}
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </el-dropdown>
       </div>
     </div>
 
@@ -52,35 +72,6 @@
               </el-tooltip>
             </el-col>
             <el-col :span="22">
-              <el-form-item label-width="93px" label="Client ID" prop="clientId">
-                <el-input size="mini" v-model="record.clientId"></el-input>
-              </el-form-item>
-            </el-col>
-            <el-col :span="1">
-              <a href="javascript:;" class="icon-oper" @click="setClientID">
-                <i class="el-icon-refresh-right"></i>
-              </a>
-            </el-col>
-            <!-- add clientID timestamp check icon -->
-            <el-col :span="1">
-              <el-tooltip
-                placement="top"
-                :effect="theme !== 'light' ? 'light' : 'dark'"
-                :open-delay="500"
-                :offset="80"
-                :content="$t('connections.clientIdWithTimeTip')"
-              >
-                <a
-                  href="javascript:;"
-                  class="icon-oper-pure"
-                  @click="reverseClientIDWithTime"
-                  :class="{ 'icon-oper-active': clientIdWithTime }"
-                >
-                  <i class="el-icon-time"></i>
-                </a>
-              </el-tooltip>
-            </el-col>
-            <el-col :span="22">
               <el-form-item class="host-item" label-width="93px" :label="$t('connections.brokerIP')" prop="host">
                 <el-col :span="6">
                   <el-select size="mini" v-model="record.protocol" @change="handleProtocol">
@@ -109,7 +100,35 @@
                 </el-input-number>
               </el-form-item>
             </el-col>
-
+            <el-col :span="22">
+              <el-form-item label-width="93px" label="Client ID" prop="clientId">
+                <el-input size="mini" v-model="record.clientId" clearable></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="1">
+              <a href="javascript:;" class="icon-oper" @click="setClientID">
+                <i class="el-icon-refresh-right"></i>
+              </a>
+            </el-col>
+            <!-- add clientID timestamp check icon -->
+            <el-col :span="1">
+              <el-tooltip
+                placement="top"
+                :effect="theme !== 'light' ? 'light' : 'dark'"
+                :open-delay="500"
+                :offset="80"
+                :content="$t('connections.clientIdWithTimeTip')"
+              >
+                <a
+                  href="javascript:;"
+                  class="icon-oper-pure"
+                  @click="reverseClientIDWithTime"
+                  :class="{ 'icon-oper-active': clientIdWithTime }"
+                >
+                  <i class="el-icon-time"></i>
+                </a>
+              </el-tooltip>
+            </el-col>
             <template v-if="record.protocol === 'ws' || record.protocol === 'wss'">
               <el-col :span="22">
                 <el-form-item label-width="93px" label="Path" prop="path">
@@ -165,10 +184,16 @@
               </el-col>
               <el-col :span="2"></el-col>
               <el-col :span="22">
+                <el-form-item label-width="93px" label="ALPN" prop="ALPNProtocols">
+                  <el-input size="mini" clearable v-model.trim="record.ALPNProtocols"></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="2"></el-col>
+              <el-col :span="22">
                 <el-form-item label-width="93px" :label="$t('connections.certType')" prop="certType">
                   <el-radio-group v-model="record.certType">
-                    <el-radio label="server">CA signed server</el-radio>
-                    <el-radio label="self">Self signed</el-radio>
+                    <el-radio label="server">CA signed server certificate</el-radio>
+                    <el-radio label="self">CA or Self signed certificates</el-radio>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
@@ -580,6 +605,7 @@ import { getClientId } from '@/utils/idGenerator'
 import { getMQTTProtocol, getDefaultRecord } from '@/utils/mqttUtils'
 import Editor from '@/components/Editor.vue'
 import KeyValueEditor from '@/components/KeyValueEditor.vue'
+import { LeftValues } from '@/utils/styles'
 
 @Component({
   components: {
@@ -593,6 +619,7 @@ export default class ConnectionForm extends Vue {
   @Getter('advancedVisible') private getterAdvancedVisible!: boolean
   @Getter('willMessageVisible') private getterWillMessageVisible!: boolean
   @Getter('currentTheme') private theme!: Theme
+  @Getter('showConnectionList') private showConnectionList!: boolean
 
   @Action('CHANGE_ACTIVE_CONNECTION') private changeActiveConnection!: (payload: Client) => void
   @Action('TOGGLE_ADVANCED_VISIBLE') private toggleAdvancedVisible!: (payload: { advancedVisible: boolean }) => void
@@ -614,7 +641,7 @@ export default class ConnectionForm extends Vue {
   private handleCreateNewConnection(val: string) {
     if (val === 'create') {
       // reinit the form when page jump to creation page
-      this.record = _.cloneDeep(this.defaultRecord)
+      this.initRecord()
     }
   }
 
@@ -628,7 +655,6 @@ export default class ConnectionForm extends Vue {
         { required: true, message: this.$t('common.inputRequired') },
         { validator: this.validateName, trigger: 'blur' },
       ],
-      clientId: [{ required: true, message: this.$t('common.inputRequired') }],
       path: [{ required: true, message: this.$t('common.inputRequired') }],
       host: [{ required: true, message: this.$t('common.inputRequired') }],
       port: [{ required: true, message: this.$t('common.inputRequired') }],
@@ -637,6 +663,10 @@ export default class ConnectionForm extends Vue {
 
   get vueForm(): VueForm {
     return this.$refs.form as VueForm
+  }
+
+  get leftValue(): string {
+    return this.showConnectionList ? LeftValues.Show : LeftValues.Hide
   }
 
   private async loadDetail(id: string) {
@@ -649,58 +679,92 @@ export default class ConnectionForm extends Vue {
     }
   }
 
-  private async save() {
-    this.vueForm.validate(async (valid: boolean) => {
-      if (!valid) {
-        return false
-      }
-      const data = { ...this.record }
-      data.properties = emptyToNull(data.properties)
-      let res: ConnectionModel | undefined = undefined
-      const { connectionService } = useServices()
-      let msgError = ''
-      // SSL File validation
-      if (data.ssl && data.certType === 'self') {
-        if (!data.cert && !data.key && !data.ca) {
-          this.$message.warning(this.$tc('connections.sslFileRequired'))
+  private validateForm(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.vueForm.validate((valid: boolean) => {
+        if (!valid) {
+          resolve(false)
           return
         }
-      }
-      if (this.oper === 'create') {
-        // create a new connection
-        res = await connectionService.create({
+
+        const { ssl, certType, cert, key, ca } = this.record
+        // SSL File validation
+        if (ssl && certType === 'self') {
+          if (!cert && !key && !ca) {
+            this.$message.warning(this.$tc('connections.sslFileRequired'))
+            resolve(false)
+            return
+          }
+        }
+        resolve(true)
+      })
+    })
+  }
+
+  private async saveData() {
+    const { connectionService } = useServices()
+    const data = { ...this.record }
+    let res: ConnectionModel | undefined = undefined
+    data.properties = emptyToNull(data.properties)
+
+    if (this.oper === 'create') {
+      // create a new connection
+      res = await connectionService.create({
+        ...data,
+        createAt: time.getNowDate(),
+        updateAt: time.getNowDate(),
+      })
+      this.$log.info(`Created for the first time: ${res?.name}, ID: ${res?.id}`)
+    } else {
+      // update a exisit connection
+      if (data.id) {
+        res = await connectionService.update(data.id, {
           ...data,
-          createAt: time.getNowDate(),
           updateAt: time.getNowDate(),
         })
-        this.$log.info(`First time created, Name: ${res?.name}, ID: ${res?.id}`)
-        msgError = this.$tc('common.createfailed')
-      } else {
-        // update a exisit connection
-        if (data.id) {
-          res = await connectionService.update(data.id, {
-            ...data,
-            updateAt: time.getNowDate(),
-          })
-          this.$log.info(`${res?.name} was edited, ID: ${res?.id}`)
-          msgError = this.$tc('common.editfailed')
-        }
+        this.$log.info(`Connection ${res?.name} was edited, ID: ${res?.id}`)
       }
+    }
+    return res
+  }
+
+  private async handleSave(type: 'connect' | 'save') {
+    const valid = await this.validateForm()
+    if (!valid) {
+      return
+    }
+
+    const res = await this.saveData()
+    // Save failed
+    if (!(res && res.id)) {
+      const msgError = this.oper === 'create' ? this.$tc('common.createfailed') : this.$tc('common.editfailed')
+      this.$message.error(msgError)
+      this.$log.error(msgError)
+      return
+    }
+
+    if (type === 'save') {
+      const { id } = this.$route.params
+      this.$emit('refresh')
+      this.handleBack(id)
+      this.$message.success(this.$tc('common.saveSuccess'))
+    } else {
       // update ActiveConnection & connect
-      if (res && res.id) {
-        this.changeActiveConnection({
-          id: res.id,
-          client: {
-            connected: false,
-          },
-        })
-        this.$emit('connect')
-        this.$router.push(`/recent_connections/${res.id}`)
-      } else {
-        this.$message.error(msgError)
-        this.$log.error(msgError)
-      }
-    })
+      this.changeActiveConnection({
+        id: res.id,
+        client: {
+          connected: false,
+        },
+      })
+      this.$emit('connect')
+      this.$router.push(`/recent_connections/${res.id}`)
+    }
+  }
+
+  private handleActionCommand(command: 'save') {
+    if (command === 'save') {
+      this.handleSave('save')
+    }
   }
 
   private setClientID() {
@@ -755,7 +819,7 @@ export default class ConnectionForm extends Vue {
     if (val && this.record.properties) {
       this.$set(this.record.properties, 'sessionExpiryInterval', 0)
     } else if (!val && this.record.properties) {
-      this.$set(this.record.properties, 'sessionExpiryInterval', null)
+      this.$set(this.record.properties, 'sessionExpiryInterval', 7200)
     }
   }
 
@@ -836,12 +900,18 @@ export default class ConnectionForm extends Vue {
     }
   }
 
-  private async created() {
-    await this.loadSuggestConnections()
+  private initRecord() {
     const { id } = this.$route.params
-    if (this.oper === 'edit' && id !== '0') {
+    if (this.oper === 'create') {
+      this.record = _.cloneDeep(this.defaultRecord)
+    } else if (this.oper === 'edit' && id !== '0') {
       this.loadDetail(id)
     }
+  }
+
+  private async created() {
+    await this.loadSuggestConnections()
+    this.initRecord()
     this.advancedVisible = this.getterAdvancedVisible
     this.willMessageVisible = this.getterWillMessageVisible
   }
@@ -855,6 +925,14 @@ export default class ConnectionForm extends Vue {
   padding: 0 16px;
   .topbar {
     -webkit-app-region: drag;
+    .tail {
+      a {
+        padding: 0 12px;
+      }
+      .connect-btn {
+        border-right: 1px solid var(--color-border-default);
+      }
+    }
   }
   .el-form {
     padding-top: 80px;

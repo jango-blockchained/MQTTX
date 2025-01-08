@@ -4,14 +4,20 @@ import { app, protocol, BrowserWindow, ipcMain, shell, Menu } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
 import { quitAndRenameLogger } from './utils/logger'
-import updateChecker, { createUpdateWindow } from './main/updateChecker'
+import rebuildDatabase from './database/rebuildDatabase'
+import { createUpdateWindow, autoDownload } from './main/updateDownloader'
+import { getCurrentLang } from './main/updateChecker'
 import getMenuTemplate from './main/getMenuTemplate'
 import saveFile from './main/saveFile'
 import saveExcel from './main/saveExcel'
 import newWindow from './main/newWindow'
+import installCLI from './main/installCLI'
 import { onSystemThemeChanged } from './main/systemTheme'
 import useConnection, { initOptionModel } from '@/database/useConnection'
 import useServices from '@/database/useServices'
+import { dialog } from 'electron'
+import ORMConfig from './database/database.config'
+import version from '@/version'
 
 declare const __static: string
 
@@ -49,8 +55,8 @@ function handleIpcMessages() {
       Menu.setApplicationMenu(menu)
     }
   })
-  ipcMain.on('checkUpdate', () => {
-    updateChecker(false)
+  ipcMain.on('clickUpdate', (event: Electron.IpcMainEvent) => {
+    event.sender.send('clickUpdate')
   })
   ipcMain.on('exportData', (event: Electron.IpcMainEvent, ...args: any[]) => {
     const [filename, content, type] = args
@@ -73,6 +79,42 @@ function handleIpcMessages() {
       event.sender.send('getWindowSize', win.getBounds())
     }
   })
+  ipcMain.on('startDownloadProgress', (event, updateDetail) => {
+    getCurrentLang().then((lang) => {
+      autoDownload(event, updateDetail, lang)
+    })
+  })
+  ipcMain.on('showMsg', (event) => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: '',
+      buttons: ['OK'],
+      message: 'There are currently no updates available.',
+    })
+  })
+  ipcMain.on('insertCodeToEditor', (event, ...args) => {
+    event.sender.send('insertCodeToEditor', ...args)
+  })
+  ipcMain.on('rebuildDatabase', (event) => {
+    try {
+      rebuildDatabase(ORMConfig.database as string)
+      app.relaunch()
+      app.exit()
+    } catch (error) {
+      const err = error as unknown as Error
+      dialog.showMessageBox({
+        type: 'error',
+        title: 'Rebuild Database Error',
+        message: 'An error occurred while rebuilding the database.',
+        detail: err.message,
+      })
+    }
+  })
+  ipcMain.on('installCLI', () => {
+    if (win) {
+      installCLI(win)
+    }
+  })
 }
 
 // handle event when APP quit
@@ -87,25 +129,44 @@ function beforeAppQuit() {
 
 async function createWindow() {
   // Init tables and connect to local database.
-  await ConnectionInit({ doMigrations: true } as initOptionModel)
-  const { settingService } = useServices()
-  await settingService.set()
-  const setting = await settingService.get()
-  if (setting) {
-    theme = setting.currentTheme
-    autoCheckUpdate = setting.autoCheck
-    syncOsTheme = setting.syncOsTheme
-    windowSize.height = setting.height
-    windowSize.width = setting.width
+  try {
+    await ConnectionInit({ doMigrations: true } as initOptionModel)
+    const { settingService } = useServices()
+    await settingService.set()
+    const setting = await settingService.get()
+    if (setting) {
+      theme = setting.currentTheme
+      autoCheckUpdate = setting.autoCheck
+      syncOsTheme = setting.syncOsTheme
+      windowSize.height = setting.height
+      windowSize.width = setting.width
+      //@ts-ignore
+      global.sharedData = {
+        currentTheme: setting.currentTheme,
+        currentLang: setting.currentLang,
+        autoCheck: setting.autoCheck,
+        autoResub: setting.autoResub,
+        maxReconnectTimes: setting.maxReconnectTimes,
+        syncOsTheme: setting.syncOsTheme,
+        multiTopics: setting.multiTopics,
+        jsonHighlight: setting.jsonHighlight,
+        enableCopilot: setting.enableCopilot,
+        openAIAPIHost: setting.openAIAPIHost,
+        openAIAPIKey: setting.openAIAPIKey,
+        model: setting.model,
+        logLevel: setting.logLevel,
+        ignoreQoS0Message: setting.ignoreQoS0Message,
+      }
+    }
+  } catch (error) {
+    const err = error as unknown as Error
+    console.error('ConnectionInit error:', err.toString())
     //@ts-ignore
     global.sharedData = {
-      currentTheme: setting.currentTheme,
-      currentLang: setting.currentLang,
-      autoCheck: setting.autoCheck,
-      autoResub: setting.autoResub,
-      maxReconnectTimes: setting.maxReconnectTimes,
-      syncOsTheme: setting.syncOsTheme,
-      multiTopics: setting.multiTopics,
+      connectDatabaseFailMessage: err.message,
+      currentTheme: 'light',
+      currentLang: 'en',
+      syncOsTheme: false,
     }
   }
   // Create the browser window.
@@ -132,7 +193,8 @@ async function createWindow() {
     }
   })
   // Menu Manger
-  const templateMenu = getMenuTemplate(win, setting?.currentLang)
+  // @ts-ignore
+  const templateMenu = getMenuTemplate(win, global.sharedData.currentLang)
   menu = Menu.buildFromTemplate(templateMenu)
   Menu.setApplicationMenu(menu)
 
@@ -154,11 +216,10 @@ async function createWindow() {
     beforeAppQuit()
   })
   handleIpcMessages()
-  if (autoCheckUpdate) {
-    updateChecker()
+  if (electronStore.get('isVersion') !== version) {
+    createUpdateWindow()
+    electronStore.set('isVersion', version)
   }
-  // updateWindow
-  electronStore.get('isShow') && createUpdateWindow()
 }
 
 // This method will be called when Electron has finished

@@ -10,9 +10,19 @@
         <h2>{{ oper === 'create' ? $t('common.new') : $t('common.edit') }}</h2>
       </div>
       <div class="tail">
-        <a href="javascript:;" @click="save">
+        <a href="javascript:;" @click="handleSave('connect')" class="connect-btn">
           {{ $t('connections.connectBtn') }}
         </a>
+        <el-dropdown trigger="click" @command="handleActionCommand">
+          <a href="javascript:;">
+            <i class="el-icon-arrow-down"></i>
+          </a>
+          <el-dropdown-menu class="connection-oper-item" slot="dropdown">
+            <el-dropdown-item command="save">
+              <i class="iconfont icon-save"></i>{{ $t('common.saveOnly') }}
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </el-dropdown>
       </div>
     </div>
 
@@ -52,8 +62,74 @@
               </el-tooltip>
             </el-col>
             <el-col :span="22">
+              <el-form-item class="host-item" label-width="93px" :label="$t('connections.brokerIP')" prop="host">
+                <el-col :span="6">
+                  <el-select size="mini" v-model="record.protocol" popper-class="ws-protocol-select">
+                    <el-option
+                      v-for="item in protocolOptions"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                      :disabled="item.disabled"
+                    >
+                      <template v-if="!isOnline || item.value !== 'ws'">
+                        {{ item.label }}
+                      </template>
+                      <template v-else>
+                        <span style="float: left">{{ item.label }}</span>
+                        <el-tooltip
+                          placement="top"
+                          :effect="theme !== 'light' ? 'light' : 'dark'"
+                          :open-delay="500"
+                          :content="$t('connections.wsProtocolNotAllowed')"
+                          popper-class="ws-protocol-tip"
+                        >
+                          <div slot="content">
+                            <i18n path="connections.wsProtocolNotAllowed" tag="div">
+                              <template #desktop>
+                                <a :href="mqttxWebsite" target="_blank">MQTTX Desktop</a>
+                              </template>
+                              <template #cli>
+                                <a :href="`${mqttxWebsite}/cli`" target="_blank">MQTTX CLI</a>
+                              </template>
+                              <template #web>
+                                <a :href="`${mqttxWebsite}/downloads?os=docker`" target="_blank">MQTTX Web</a>
+                              </template>
+                              <template #announcement>
+                                <a :href="wsAnnouncementLink" target="_blank">{{ $t('connections.wsAnnouncement') }}</a>
+                              </template>
+                            </i18n>
+                          </div>
+                          <a href="javascript:;" class="icon-tip">
+                            <i class="el-icon-question"></i>
+                          </a>
+                        </el-tooltip>
+                      </template>
+                    </el-option>
+                  </el-select>
+                </el-col>
+                <el-col :span="18">
+                  <el-input size="mini" v-model.trim="record.host"> </el-input>
+                </el-col>
+              </el-form-item>
+            </el-col>
+            <el-col :span="2"></el-col>
+            <el-col :span="22">
+              <el-form-item label-width="93px" :label="$t('connections.brokerPort')" prop="port">
+                <el-input-number
+                  size="mini"
+                  type="number"
+                  :min="0"
+                  :max="65535"
+                  v-model="record.port"
+                  controls-position="right"
+                >
+                </el-input-number>
+              </el-form-item>
+            </el-col>
+            <el-col :span="22">
               <el-form-item label-width="93px" label="Client ID" prop="clientId">
-                <el-input size="mini" v-model="record.clientId"></el-input>
+                <el-input size="mini" v-model="record.clientId" clearable></el-input>
               </el-form-item>
             </el-col>
             <el-col :span="1">
@@ -79,33 +155,6 @@
                   <i class="el-icon-time"></i>
                 </a>
               </el-tooltip>
-            </el-col>
-            <el-col :span="22">
-              <el-form-item class="host-item" label-width="93px" :label="$t('connections.brokerIP')" prop="host">
-                <el-col :span="6">
-                  <el-select size="mini" v-model="record.protocol">
-                    <el-option label="ws://" value="ws" :disabled="record.ssl"></el-option>
-                    <el-option label="wss://" value="wss"></el-option>
-                  </el-select>
-                </el-col>
-                <el-col :span="18">
-                  <el-input size="mini" v-model.trim="record.host"> </el-input>
-                </el-col>
-              </el-form-item>
-            </el-col>
-            <el-col :span="2"></el-col>
-            <el-col :span="22">
-              <el-form-item label-width="93px" :label="$t('connections.brokerPort')" prop="port">
-                <el-input-number
-                  size="mini"
-                  type="number"
-                  :min="0"
-                  :max="65535"
-                  v-model="record.port"
-                  controls-position="right"
-                >
-                </el-input-number>
-              </el-form-item>
             </el-col>
 
             <template v-if="record.protocol === 'ws' || record.protocol === 'wss'">
@@ -163,6 +212,12 @@
                 </el-form-item>
               </el-col>
               <el-col :span="2"> </el-col>
+              <el-col :span="22">
+                <el-form-item label-width="93px" label="ALPN" prop="ALPNProtocols">
+                  <el-input size="mini" clearable v-model.trim="record.ALPNProtocols"></el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="2"></el-col>
             </template>
           </el-row>
         </el-card>
@@ -545,7 +600,7 @@ export default class ConnectionCreate extends Vue {
   private handleCreateNewConnection(val: string) {
     if (val === 'create') {
       // reinit the form when page jump to creation page
-      this.record = _.cloneDeep(this.defaultRecord)
+      this.initRecord()
     }
   }
 
@@ -559,17 +614,36 @@ export default class ConnectionCreate extends Vue {
         { required: true, message: this.$t('common.inputRequired') },
         { validator: this.validateName, trigger: 'blur' },
       ],
-      clientId: [{ required: true, message: this.$t('common.inputRequired') }],
       path: [{ required: true, message: this.$t('common.inputRequired') }],
       host: [{ required: true, message: this.$t('common.inputRequired') }],
       port: [{ required: true, message: this.$t('common.inputRequired') }],
-      certType: [{ required: true, message: this.$t('common.selectRequired') }],
-      ca: [{ required: true, message: this.$t('common.inputRequired') }],
     }
   }
 
   get vueForm(): VueForm {
     return this.$refs.form as VueForm
+  }
+
+  get isOnline() {
+    return process.env.VUE_APP_IS_ONLINE_ENV === 'true'
+  }
+
+  get mqttxWebsite(): string {
+    const link = 'https://mqttx.app'
+    return this.getterLang === 'zh' ? `${link}/zh` : link
+  }
+
+  get wsAnnouncementLink() {
+    const lang = this.getterLang === 'zh' ? 'zh' : 'en'
+    return `https://www.emqx.com/${lang}/blog/mqttx-web-migration-announcement`
+  }
+
+  get protocolOptions() {
+    const disabled = this.isOnline || this.record.ssl
+    return [
+      { label: 'ws://', value: 'ws', disabled },
+      { label: 'wss://', value: 'wss', disabled: false },
+    ]
   }
 
   private async loadDetail(id: string) {
@@ -581,39 +655,76 @@ export default class ConnectionCreate extends Vue {
     }
   }
 
-  private save() {
-    this.vueForm.validate(async (valid: boolean) => {
-      if (!valid) {
-        return false
-      }
-      const data = { ...this.record }
-      data.properties = emptyToNull(data.properties)
-      let res: ConnectionModel | null = null
-      let msgError = ''
-      if (this.oper === 'create') {
-        // create a new connection
-        res = await createConnection({ ...data, createAt: time.getNowDate(), updateAt: time.getNowDate() })
-        msgError = this.$tc('common.createfailed')
-      } else {
-        // update a exisit connection
-        if (data.id) {
-          res = await updateConnection(data.id, { ...data, updateAt: time.getNowDate() })
-          msgError = this.$tc('common.editfailed')
+  private validateForm(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.vueForm.validate((valid: boolean) => {
+        if (!valid) {
+          resolve(false)
+          return
         }
-      }
-      // update ActiveConnection & connect
-      if (res && res.id) {
-        this.changeActiveConnection({
-          id: res.id,
-          client: {},
-          messages: [],
-        })
-        this.$emit('connect')
-        this.$router.push(`/recent_connections/${res.id}`)
-      } else {
-        this.$message.error(msgError)
-      }
+
+        resolve(true)
+      })
     })
+  }
+
+  private async saveData() {
+    const data = { ...this.record }
+    data.properties = emptyToNull(data.properties)
+    let res: ConnectionModel | null = null
+
+    if (this.oper === 'create') {
+      // create a new connection
+      res = await createConnection({
+        ...data,
+        createAt: time.getNowDate(),
+        updateAt: time.getNowDate(),
+      })
+    } else {
+      // update a exisit connection
+      if (data.id) {
+        res = await updateConnection(data.id, { ...data, updateAt: time.getNowDate() })
+      }
+    }
+
+    return res
+  }
+
+  private async handleSave(type: 'connect' | 'save') {
+    const valid = await this.validateForm()
+    if (!valid) {
+      return
+    }
+
+    const res = await this.saveData()
+    // Save failed
+    if (!(res && res.id)) {
+      const msgError = this.oper === 'create' ? this.$tc('common.createfailed') : this.$tc('common.editfailed')
+      this.$message.error(msgError)
+      return
+    }
+
+    if (type === 'save') {
+      const { id } = this.$route.params
+      this.$emit('refresh')
+      this.handleBack(id)
+      this.$message.success(this.$tc('common.saveSuccess'))
+    } else {
+      // update ActiveConnection & connect
+      this.changeActiveConnection({
+        id: res.id,
+        client: {},
+        messages: [],
+      } as Client)
+      this.$emit('connect')
+      this.$router.push(`/recent_connections/${res.id}`)
+    }
+  }
+
+  private handleActionCommand(command: 'save') {
+    if (command === 'save') {
+      this.handleSave('save')
+    }
   }
 
   private setClientID() {
@@ -696,12 +807,18 @@ export default class ConnectionCreate extends Vue {
     this.record = oneConnection
   }
 
-  private created() {
-    this.loadData()
+  private initRecord() {
     const { id } = this.$route.params
-    if (this.oper === 'edit' && id !== '0') {
+    if (this.oper === 'create') {
+      this.record = _.cloneDeep(this.defaultRecord)
+    } else if (this.oper === 'edit' && id !== '0') {
       this.loadDetail(id)
     }
+  }
+
+  private created() {
+    this.loadData()
+    this.initRecord()
     this.advancedVisible = this.getterAdvancedVisible
     this.willMessageVisible = this.getterWillMessageVisible
   }
@@ -715,6 +832,14 @@ export default class ConnectionCreate extends Vue {
   padding: 0 16px;
   .topbar {
     -webkit-app-region: drag;
+    .tail {
+      a {
+        padding: 0 12px;
+      }
+      .connect-btn {
+        border-right: 1px solid var(--color-border-default);
+      }
+    }
   }
   .el-form {
     padding-top: 80px;
@@ -800,6 +925,22 @@ export default class ConnectionCreate extends Vue {
         margin-left: 10px;
       }
     }
+  }
+}
+
+.ws-protocol-tip {
+  max-width: 300px;
+  a {
+    font-size: 12px;
+  }
+}
+
+.ws-protocol-select {
+  .icon-tip {
+    position: absolute;
+    right: 16px;
+    font-size: 16px;
+    color: var(--color-text-tips);
   }
 }
 </style>
